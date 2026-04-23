@@ -1,4 +1,12 @@
 node_modules/
 dist/
-bezos-meeting-blog/
+out/
 .DS_Store
+
+.claude/*
+!.claude/skills
+
+.codex/*
+!.codex/skills
+
+plans

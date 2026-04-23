@@ -2,7 +2,6 @@ import { listDefinitions, summarizeBrief } from "../workflow"
 
 export async function runWorkflowList(opts: {
   search?: string
-  lane?: string
   group?: string
   fn?: string
   tag?: string[]
@@ -13,10 +12,6 @@ export async function runWorkflowList(opts: {
   if (opts.search) {
     const needle = opts.search.toLowerCase()
     defs = defs.filter((d) => JSON.stringify(d).toLowerCase().includes(needle))
-  }
-  if (opts.lane) {
-    const v = opts.lane.toLowerCase()
-    defs = defs.filter((d) => (d.lane as string).toLowerCase() === v)
   }
   if (opts.group) {
     const v = opts.group.toLowerCase()
