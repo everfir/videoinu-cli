@@ -2,12 +2,13 @@
  * Workflow 核心逻辑：定义列表/详情、input 构建、执行、状态轮询、输出解析
  */
 
+import crypto from "node:crypto"
 import fs from "node:fs"
 import path from "node:path"
 import os from "node:os"
 import { z } from "zod"
 import { apiGet, apiPost, downloadBuffer } from "./api"
-import { uploadFile, createTextCoreNode, createJsonCoreNode, createUrlCoreNode } from "./upload"
+import { uploadFile, createTextCoreNode, createJsonCoreNode } from "./upload"
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -151,14 +152,30 @@ export async function getDefinition(definitionId: string): Promise<WorkflowDefin
 }
 
 // ---------------------------------------------------------------------------
-// Input 构建（从 input-spec 到 core_node_refs）
+// Input 构建（从 input-spec 到后端输入格式；内部管理 ID，不对外暴露）
 // ---------------------------------------------------------------------------
 
-export interface ResolvedNode {
+/** 内部产物：记录一次 input 构建过程中落地的所有 core_node_id（审核等业务逻辑内部使用，不对外） */
+export interface InternalInputNode {
   slot_name: string
   core_node_id: string
   asset_type: string
   source_kind: string
+}
+
+/**
+ * 下载远端 URL 到临时文件，返回本地路径。
+ * 用于"始终走上传"策略：URL 输入 → 下载 → 作为本地文件上传。
+ */
+async function downloadUrlToTemp(url: string): Promise<string> {
+  const buf = await downloadBuffer(url)
+  const tmpRoot = path.join(os.tmpdir(), "videoinu-upload")
+  fs.mkdirSync(tmpRoot, { recursive: true })
+  const parsedPath = new URL(url).pathname
+  const ext = path.extname(parsedPath) || ".bin"
+  const tmpFile = path.join(tmpRoot, `${crypto.randomUUID()}${ext}`)
+  fs.writeFileSync(tmpFile, buf)
+  return tmpFile
 }
 
 async function resolveInputItem(
@@ -167,11 +184,6 @@ async function resolveInputItem(
 ): Promise<{ core_node_id: string; asset_type: string; source_kind: string }> {
   const type = item.type as string | undefined
 
-  if (type === "core_node") {
-    const id = (item.core_node_id ?? item.id) as string
-    if (!id) throw new Error(`Missing core_node_id for slot '${slot.name}'`)
-    return { core_node_id: id, asset_type: slot.data_type, source_kind: "existing" }
-  }
   if (type === "text") {
     const content = item.content as string
     return { core_node_id: await createTextCoreNode(content), asset_type: "text", source_kind: "text" }
@@ -186,19 +198,31 @@ async function resolveInputItem(
     return { core_node_id: result.core_node_id, asset_type: result.asset_type, source_kind: "file" }
   }
   if (type === "url") {
-    const assetType = (item.asset_type as string) || slot.data_type
-    if (!assetType) throw new Error(`Slot '${slot.name}' url input requires asset_type`)
-    const id = await createUrlCoreNode(item.url as string, assetType)
-    return { core_node_id: id, asset_type: assetType, source_kind: "url" }
+    // 始终走上传：远端 URL → 下载到临时文件 → 走常规上传链路（MD5 缓存仍生效）
+    const tmp = await downloadUrlToTemp(item.url as string)
+    try {
+      const result = await uploadFile(tmp)
+      return { core_node_id: result.core_node_id, asset_type: result.asset_type, source_kind: "url" }
+    } finally {
+      try { fs.unlinkSync(tmp) } catch { /* ignore */ }
+    }
   }
   throw new Error(`Unknown input type '${type}' for slot '${slot.name}'`)
 }
 
-/** 自动推断 raw value 的类型 */
+/**
+ * 自动推断 raw value 的类型。
+ * 对外只接受：本地路径 / http(s) URL / 纯字符串 / 对象（文本/json/file/url 四类）。
+ * 不接受 core_node_id — 该概念已完全内部化。
+ */
 function coerceItem(value: unknown, slot: InputSlot): Record<string, unknown> {
   if (typeof value === "object" && value !== null && !Array.isArray(value)) {
     const obj = value as Record<string, unknown>
-    if (obj.type && ["core_node", "text", "json", "file", "url"].includes(obj.type as string)) return obj
+    if (obj.type) {
+      const t = obj.type as string
+      if (["text", "json", "file", "url"].includes(t)) return obj
+      throw new Error(`Unsupported input type '${t}' for slot '${slot.name}' (allowed: text/json/file/url)`)
+    }
     if (slot.data_type === "json") return { type: "json", content: value }
   }
   if (typeof value === "string") {
@@ -218,10 +242,10 @@ function coerceItem(value: unknown, slot: InputSlot): Record<string, unknown> {
 export async function buildInputs(
   spec: Record<string, unknown>,
   inputSchema: InputSlot[]
-): Promise<{ inputs: Record<string, unknown>; createdNodes: ResolvedNode[] }> {
+): Promise<{ inputs: Record<string, unknown>; createdNodes: InternalInputNode[] }> {
   const schemaMap = new Map(inputSchema.map((s) => [s.name, s]))
   const inputs: Record<string, unknown> = {}
-  const createdNodes: ResolvedNode[] = []
+  const createdNodes: InternalInputNode[] = []
 
   for (const [slotName, rawValue] of Object.entries(spec)) {
     const slot = schemaMap.get(slotName)
@@ -250,7 +274,6 @@ export async function buildInputs(
     }
   }
 
-  // 检查 required
   const missing = inputSchema
     .filter((s) => s.required)
     .filter((s) => {
@@ -439,11 +462,18 @@ export async function batchGetCoreNodes(ids: string[]): Promise<Record<string, u
   return parsed.core_nodes ?? []
 }
 
-/** 从 instance.outputs 提取 core_node 引用。API 返回格式: [{slot_name, core_node_id, role}] */
-export function extractOutputRefs(instance: Record<string, unknown>): { slot_name: string; core_node_id: string }[] {
+/**
+ * 内部：从 instance.outputs 提取 {slot_name, core_node_id} 引用。
+ * 只在 CLI 内部使用，不对外暴露。
+ */
+interface InternalOutputRef {
+  slot_name: string
+  core_node_id: string
+}
+
+function extractOutputRefs(instance: Record<string, unknown>): InternalOutputRef[] {
   const outputs = instance.outputs
   if (!Array.isArray(outputs)) return []
-
   return outputs
     .filter((item): item is Record<string, unknown> =>
       typeof item === "object" && item !== null && typeof (item as Record<string, unknown>).core_node_id === "string"
@@ -454,54 +484,114 @@ export function extractOutputRefs(instance: Record<string, unknown>): { slot_nam
     }))
 }
 
-export function summarizeCoreNode(node: Record<string, unknown>): Record<string, unknown> {
-  const data = (node.data as Record<string, unknown>) ?? {}
-  const summary: Record<string, unknown> = {
-    id: node.id ?? "",
-    type: node.type ?? "",
-  }
-  if (node.type === "asset") {
-    summary.asset_type = data.asset_type ?? ""
-    if (data.url) summary.url = data.url
-    if (data.content != null) summary.content = data.content
-    if (data.metadata) summary.metadata = data.metadata
-  }
-  return summary
+/** 对外输出项：文件化语义，不含任何 ID */
+export interface OutputItem {
+  slot_name: string
+  asset_type: string
+  local_path?: string      // 下载后的本地路径（二进制资产）
+  remote_url?: string      // 平台上的公开 URL（用于分享，不作为输入引用）
+  content?: unknown        // 文本/JSON 资产的内联内容
 }
 
-export async function resolveOutputs(
-  instance: Record<string, unknown>
-): Promise<Record<string, unknown>[]> {
+/** slot_name / 任意字符串 → 文件名安全片段 */
+function slugifySegment(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+}
+
+/**
+ * 解析 instance 的 outputs 并下载到本地。
+ * - URL 类资产：必下载；文件名 `<prefix>_<slot-slug>_<idx>.<ext>`
+ * - 文本/JSON 类资产：不下载，content 直接内联在返回项里
+ * prefix 必传，保证文件名语义化。
+ *
+ * 返回 {items, errors}；errors 只来自下载失败，解析失败会抛异常。
+ */
+export async function resolveOutputsAndDownload(
+  instance: Record<string, unknown>,
+  outputDir: string,
+  prefix: string
+): Promise<{ items: OutputItem[]; errors: { slot_name: string; error: string }[] }> {
+  if (!prefix || !prefix.trim()) {
+    throw new Error("resolveOutputsAndDownload: prefix is required (semantic filename)")
+  }
+  const prefixSlug = slugifySegment(prefix)
+  if (!prefixSlug) {
+    throw new Error(`resolveOutputsAndDownload: prefix "${prefix}" contains no filename-safe characters`)
+  }
+
   const refs = extractOutputRefs(instance)
-  const ids = refs.map((r) => r.core_node_id)
-  const nodes = await batchGetCoreNodes(ids)
+  if (refs.length === 0) return { items: [], errors: [] }
+
+  const nodes = await batchGetCoreNodes(refs.map((r) => r.core_node_id))
   const nodeMap = new Map(nodes.map((n) => [n.id as string, n]))
 
-  return refs.map((ref) => {
-    const node = nodeMap.get(ref.core_node_id)
-    return {
-      ...ref,
-      ...(node ? { core_node: summarizeCoreNode(node) } : {}),
-    }
-  })
-}
+  fs.mkdirSync(outputDir, { recursive: true })
 
-/** 从 outputs 中提取所有可下载的 URL */
-export function collectDownloadUrls(outputs: Record<string, unknown>[]): string[] {
-  return outputs
-    .map((o) => {
-      const cn = o.core_node as Record<string, unknown> | undefined
-      return cn?.url as string | undefined
+  const items: OutputItem[] = []
+  const errors: { slot_name: string; error: string }[] = []
+
+  await Promise.all(
+    refs.map(async (ref, i) => {
+      const node = nodeMap.get(ref.core_node_id)
+      const data = (node?.data as Record<string, unknown> | undefined) ?? {}
+      const assetType = (data.asset_type as string) ?? ""
+      const url = data.url as string | undefined
+      const content = data.content
+
+      const item: OutputItem = {
+        slot_name: ref.slot_name,
+        asset_type: assetType,
+      }
+
+      if (content != null) item.content = content
+      if (url) item.remote_url = url
+
+      // 仅对有 URL 的资产下载
+      if (url) {
+        try {
+          const parsedPath = new URL(url).pathname
+          const ext = path.extname(parsedPath) || ".bin"
+          const idx = String(i + 1).padStart(3, "0")
+          const slotPart = ref.slot_name ? `_${slugifySegment(ref.slot_name) || "slot"}` : ""
+          const filename = `${prefixSlug}${slotPart}_${idx}${ext}`
+          const localPath = path.join(outputDir, filename)
+          const buf = await downloadBuffer(url)
+          fs.writeFileSync(localPath, buf)
+          item.local_path = localPath
+        } catch (e) {
+          errors.push({ slot_name: ref.slot_name, error: e instanceof Error ? e.message : String(e) })
+        }
+      }
+
+      items.push(item)
     })
-    .filter((url): url is string => !!url)
+  )
+
+  items.sort((a, b) => (a.slot_name < b.slot_name ? -1 : a.slot_name > b.slot_name ? 1 : 0))
+  return { items, errors }
 }
 
-/** 下载 URL 列表到目录 */
-export async function downloadFiles(
+/**
+ * 顶层 `videoinu download <urls...>` 使用：下载任意 URL 列表到本地。
+ * 无 slot 语义，命名 `<prefix>_<idx>.<ext>`。
+ */
+export async function downloadUrls(
   urls: string[],
   outputDir: string,
-  prefix = ""
+  prefix: string
 ): Promise<{ downloaded: string[]; errors: { url: string; error: string }[] }> {
+  if (!prefix || !prefix.trim()) {
+    throw new Error("downloadUrls: prefix is required (semantic filename)")
+  }
+  const prefixSlug = slugifySegment(prefix)
+  if (!prefixSlug) {
+    throw new Error(`downloadUrls: prefix "${prefix}" contains no filename-safe characters`)
+  }
+
   fs.mkdirSync(outputDir, { recursive: true })
   const downloaded: string[] = []
   const errors: { url: string; error: string }[] = []
@@ -510,7 +600,8 @@ export async function downloadFiles(
     urls.map(async (url, i) => {
       const parsedPath = new URL(url).pathname
       const ext = path.extname(parsedPath) || ".bin"
-      const filename = prefix ? `${prefix}_${String(i + 1).padStart(3, "0")}${ext}` : path.basename(parsedPath)
+      const idx = String(i + 1).padStart(3, "0")
+      const filename = `${prefixSlug}_${idx}${ext}`
       const localPath = path.join(outputDir, filename)
       try {
         const buf = await downloadBuffer(url)

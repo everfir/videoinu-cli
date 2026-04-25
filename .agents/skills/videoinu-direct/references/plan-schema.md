@@ -21,7 +21,7 @@ Prompt 数据: ./<同前缀>.prompts.json
 | style | all | style_lock | style_lock |
 
 维度词汇：`identity: <subject>` | `style` | `composition: <场景>` | `motion` | `color_lighting`
-来源类型：`ref image` | `first-frame chain` | `LoRA` | `anchor text` | `motion ref` | `seed` | `style_lock`
+来源类型：`ref image` | `first-frame chain` | `anchor text` | `motion ref` | `seed` | `style_lock`
 规则：每行一维×一主体组 | 来源必须可追溯到 `input_spec` 或 Style Lock | `anchor text` 是最弱来源需标 `⚠️` | 单步 Plan 跳过
 
 ## 执行步骤
@@ -48,7 +48,9 @@ Prompt 数据: ./<同前缀>.prompts.json
 
 ## `.prompts.json` Schema
 
-**只放执行必须的数据**。创作侧元数据（事件描述、注意力预算、可生成性评分、style lock）留在 Plan `.md` 或作为写 prompt 的思考过程，不进 JSON。
+**只放执行必须的数据**。创作侧元数据（事件描述、风格基调等决策记录）留在 Plan `.md` 或作为写 prompt 的思考过程，不进 JSON。
+
+骨架：
 
 ```json
 {
@@ -57,23 +59,18 @@ Prompt 数据: ./<同前缀>.prompts.json
       "type": "image",
       "input_spec": {
         "prompt": "最终 prompt",
-        "<slot>": "<值或占位符>"
+        "<slot>": "<值>"
       }
     },
     "shot_01": {
       "type": "image-to-video",
       "input_spec": {
         "prompt": "...",
-        "image": "{type:\"core_node\", core_node_id:\"REF_IMG\"}"
+        "image": "<对 REF_IMG 的引用>"
       }
     }
   }
 }
-```
-
-执行后追加 `result`：
-```json
-{ "result": { "core_node_id": "...", "instance_id": "..." } }
 ```
 
 ### 字段读写
@@ -81,15 +78,28 @@ Prompt 数据: ./<同前缀>.prompts.json
 | 字段 | 行为 |
 |------|------|
 | `steps[key].type` | 读：决定工作流类型 |
-| `steps[key].input_spec` | 读：`videoinu run --input-spec` 的输入 |
-| `steps[key].result` | 写：执行成功后追加 |
+| `steps[key].input_spec` | 读：`videoinu run --input-spec` 的输入。值可以是本地路径 / URL / 文本 / JSON |
+| `steps[key].result` | 写：执行成功后追加一个 outputs 数组（文件化结构，见下） |
 
-## 占位符规则
+`result` 结构（由 `videoinu-cli` 执行时写入）：
 
-- `.md`「执行步骤」用全大写命名产物：`REF_IMG`、`SHOT_01`
-- JSON 中引用：`"image": "{type:\"core_node\", core_node_id:\"REF_IMG\"}"`
-- 执行前扫描 `input_spec` 中占位符，用已完成步骤的 `result.core_node_id` 替换；找不到停下报错
-- 执行后回填 `result` 到 JSON，追加日志到 `.md`
+```json
+{
+  "outputs": [
+    {"slot_name": "image", "asset_type": "image", "local_path": "plans/out/ref-img_image_001.png", "remote_url": "..."},
+    {"slot_name": "caption", "asset_type": "text", "content": "..."}
+  ]
+}
+```
+
+### 步骤间引用
+
+direct 只负责：
+
+- 在 `.md`「执行步骤」里用全大写命名产物（`REF_IMG`、`SHOT_01`），后续步骤写"输入: <REF_IMG>"
+- 在 `.prompts.json` 的 `input_spec` 里标出哪个槽位要引用哪个前序产物名
+
+**具体怎么落到文件路径由 `videoinu-cli` skill 负责**——它执行上一步时用 `--download-prefix <产物名>` 把产物命名成可追溯的本地文件，然后在下一步前把文件路径字符串填进 `input_spec`。direct 不需要写任何 ID、引用语法或占位符。
 
 ## 中断恢复
 
@@ -99,5 +109,5 @@ Prompt 数据: ./<同前缀>.prompts.json
 
 - 没读 Plan 两个文件不执行
 - 状态不是 `approved` 或 `executing` 不执行
-- 占位符无对应 result → 停下报错
+- 前序产物缺失（上一步 `result` 空 / 对应 `local_path` 不存在）→ 停下报错
 - 执行中不改 prompt / input_spec；要改先停下改 Plan 再让用户确认

@@ -3,12 +3,10 @@ import {
   buildInputs,
   runWorkflow,
   waitForWorkflow,
-  resolveOutputs,
-  collectDownloadUrls,
-  downloadFiles,
+  resolveOutputsAndDownload,
   progressCallback,
   estimateCost,
-  type ResolvedNode,
+  type InternalInputNode,
   type WorkflowDefinition,
 } from "../workflow"
 import { ensureActive } from "../ark-asset"
@@ -22,26 +20,26 @@ function needsArkReview(def: WorkflowDefinition): boolean {
   return def.tags.some((t) => t.toLowerCase().includes("seedance"))
 }
 
-/** 对 image/video 类型的 input core_node 执行 ark asset 审核 */
+/** 对 image/video 类型的 input 执行 ark asset 审核（内部使用 core_node_id，不对外暴露） */
 async function reviewInputNodes(
-  createdNodes: ResolvedNode[],
+  createdNodes: InternalInputNode[],
   opts: { timeout: number; interval: number }
 ): Promise<void> {
   const toReview = createdNodes.filter((n) => REVIEW_MEDIA_TYPES.has(n.asset_type))
   if (toReview.length === 0) return
 
-  process.stderr.write(`Submitting ${toReview.length} media input(s) for ark asset review...\n`)
+  process.stderr.write(`Submitting ${toReview.length} media input(s) for content review...\n`)
   for (const node of toReview) {
     const result = await ensureActive(node.core_node_id, {
       timeout: opts.timeout,
       interval: opts.interval,
       onProgress: (status) =>
-        process.stderr.write(`[review] ${node.slot_name} (${node.core_node_id.slice(0, 8)}...) status=${status}\n`),
+        process.stderr.write(`[review] ${node.slot_name} status=${status}\n`),
     })
     if (result.cached) {
-      process.stderr.write(`[review] ${node.slot_name}: already Active (cached)\n`)
+      process.stderr.write(`[review] ${node.slot_name}: already approved (cached)\n`)
     } else {
-      process.stderr.write(`[review] ${node.slot_name}: Active\n`)
+      process.stderr.write(`[review] ${node.slot_name}: approved\n`)
     }
   }
 }
@@ -49,7 +47,6 @@ async function reviewInputNodes(
 export async function runRun(opts: {
   definitionId: string
   inputSpec?: string
-  inputs?: string
   mode: "create_asset" | "create_graph" | "in_graph"
   assetName?: string
   graphName?: string
@@ -58,32 +55,23 @@ export async function runRun(opts: {
   wait: boolean
   timeout: number
   interval: number
-  downloadDir?: string
-  downloadPrefix?: string
+  downloadDir: string
+  downloadPrefix: string
   review?: boolean
   estimate?: boolean
 }) {
   const definition = await getDefinition(opts.definitionId)
 
-  let inputs: Record<string, unknown>
-  let createdNodes: ResolvedNode[] = []
+  const spec = opts.inputSpec ? JSON.parse(opts.inputSpec) : {}
+  const built = await buildInputs(spec, definition.input_schema)
+  const inputs = built.inputs
+  const createdNodes = built.createdNodes
 
-  if (opts.inputs) {
-    inputs = JSON.parse(opts.inputs)
-  } else {
-    const spec = opts.inputSpec ? JSON.parse(opts.inputSpec) : {}
-    const built = await buildInputs(spec, definition.input_schema)
-    inputs = built.inputs
-    createdNodes = built.createdNodes
-  }
-
-  // ark asset 审核：--review 显式指定，或自动检测 seedance 系列
   const shouldReview = opts.review ?? needsArkReview(definition)
   if (shouldReview && createdNodes.length > 0) {
     await reviewInputNodes(createdNodes, { timeout: opts.timeout || 300, interval: opts.interval || 5 })
   }
 
-  // 价格预估
   const estimate = await estimateCost(opts.definitionId, inputs)
 
   if (opts.estimate) {
@@ -122,7 +110,6 @@ export async function runRun(opts: {
     instance_ids: instanceIds,
     asset_id: assetId ?? "",
     graph_id: graphId ?? "",
-    created_input_core_nodes: createdNodes,
   }
 
   if (!opts.wait) {
@@ -147,25 +134,18 @@ export async function runRun(opts: {
     if (status.warning) instanceResult.warning = status.warning
 
     if (status.status === "completed") {
-      const outputs = await resolveOutputs(instance)
-      instanceResult.outputs = outputs
-
-      if (opts.downloadDir) {
-        const urls = collectDownloadUrls(outputs)
-        const { downloaded, errors } = await downloadFiles(
-          urls,
-          opts.downloadDir,
-          opts.downloadPrefix || instanceId
-        )
-        instanceResult.downloaded = downloaded
-        if (errors.length) instanceResult.download_errors = errors
-      }
+      const { items, errors } = await resolveOutputsAndDownload(
+        instance,
+        opts.downloadDir,
+        opts.downloadPrefix
+      )
+      instanceResult.outputs = items
+      if (errors.length) instanceResult.download_errors = errors
     } else if (status.warning) {
       // 超时未完成，给出续接命令
-      const dlPart = opts.downloadDir ? ` --download-dir ${opts.downloadDir}` : ""
       process.stderr.write(
         `Timed out. Continue with:\n` +
-        `  videoinu status ${instanceId} --poll 1800 --outputs${dlPart}\n`
+        `  videoinu status ${instanceId} --poll 1800 --download-dir ${opts.downloadDir} --download-prefix ${opts.downloadPrefix}\n`
       )
     }
 

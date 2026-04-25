@@ -13,7 +13,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "tsup --watch",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "netdiag": "npx tsx scripts/netdiag.ts"
   },
   "engines": {
     "node": ">=18"

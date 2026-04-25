@@ -114,10 +114,21 @@ export async function createUrlCoreNode(url: string, assetType: string): Promise
 // Public
 // ---------------------------------------------------------------------------
 
+/**
+ * 内部使用（含 core_node_id），仅模块内消费、不作为 CLI 外部契约
+ */
 export interface UploadResult {
   core_node_id: string
   file_url?: string
   asset_type: string
+  cached?: boolean
+}
+
+/** 对外 CLI 返回的上传结果（不含任何 ID） */
+export interface PublicUploadResult {
+  local_path: string
+  asset_type: string
+  remote_url?: string
   cached?: boolean
 }
 
@@ -177,4 +188,16 @@ export async function uploadFile(filePath: string): Promise<UploadResult> {
   writeUploadCache(cache)
 
   return { core_node_id: coreNodeId, file_url: presign.file_url, asset_type: assetType }
+}
+
+/** 面向 CLI：上传后只返回 {local_path, asset_type, remote_url?, cached?}，不暴露 ID */
+export async function uploadFilePublic(filePath: string): Promise<PublicUploadResult> {
+  const result = await uploadFile(filePath)
+  const resolved = path.resolve(filePath)
+  return {
+    local_path: resolved,
+    asset_type: result.asset_type,
+    ...(result.file_url ? { remote_url: result.file_url } : {}),
+    ...(result.cached ? { cached: true } : {}),
+  }
 }
