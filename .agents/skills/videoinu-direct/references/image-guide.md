@@ -1,22 +1,39 @@
 # Image Prompt 速查
 
-**带参考图时**（r2i / 多图场景）先读 SKILL.md「身份核对」「`@imageN` 的正面用途说明」「有资产时的 prompt 反稀释原则」，本文件只覆盖纯文生图。
+面向 gpt-image-2。模型擅长 instruction-following，**优先写自然语言的完整描述**，而不是标签堆砌。下方词表用作词汇参考，不是骨架填空项。
 
-## Prompt 骨架
+**带参考图时**（r2i / 多图场景）先读 SKILL.md「身份核对」「`@imageN` 的正面用途说明」「有资产时的 prompt 反稀释原则」。
 
-```text
-[subject + defining attributes], [environment + composition], [style anchor], [lighting], [camera/render tags], [stability constraints]
-```
+gpt-image-2 **没有 negative prompt 参数**，不要单独写"Negative:"字段；要排除的内容直接在正向 prompt 中说（例："no text, no watermark"）。
 
-6 个变量覆盖完：主体、环境、构图（景别+视角+位置）、风格（1 主 ≤1 辅）、光照（时间+方向+质感）、输出约束（画幅+镜头+材质）。
+## Prompt 结构
+
+写成一段自然语言，按下列顺序展开即可，不需要逗号分隔的 tag 流：
+
+1. **主体**：是什么、关键属性、动作/姿态
+2. **场景**：环境、时间、氛围
+3. **构图**：景别、视角、主体在画面中的位置、前中后景关系
+4. **光照**：方向、时间、质感
+5. **风格**：1 个主风格锚点，必要时加 ≤1 个辅风格
+6. **输出约束**：画幅、镜头参数、材质、分辨率相关提示
+
+复杂主体（角色设定、产品规格、品牌视觉）建议用**结构化规格写法**——分小标题列出外观/材质/配色/比例等，模型会严格按规格生成。
 
 ## 核心规则
 
 - 主体明确时不叠第二套风格；构图不稳先补景别/视角而非堆风格词
-- 追求 realism 写镜头、材质、光照、景深；精确布局或主体一致性优先 reference
+- 追求 realism 写镜头、材质、光照、景深；精确布局或身份一致性优先走 edit + reference
 - 多主体写明空间位置和景深关系
-- Negative Prompt 只写真实失败模式（5-15 词），不写反义词
-- 输出：Prompt 一条紧凑长句逗号分隔，默认英文
+- 要排除的元素写在正向 prompt 里，不要用反义词堆砌
+- 镜头/胶卷型号（`f/1.8`、`Kodak Portra 400`）对 gpt-image-2 是风格暗示，不是物理参数
+- 默认英文 prompt；中文可用，但专业术语保留英文命中率更高
+
+## Edit 场景
+
+使用 `images.edit` 带 reference 图时：
+
+- **描述整张最终图像**，不要只描述要改的局部——保留不变的部分也写一遍以防漂移
+- 多图输入时先写身份/物体一致性约束（"keep the same character's face, clothing, and pose from reference"），再写要改变的部分
 
 ---
 
@@ -82,6 +99,22 @@
 
 ## 示例
 
-**Prompt**: cinematic photography, young woman walking alone on rain-soaked Shinjuku street at night, shot from behind at three-quarter angle, black leather jacket glistening with rain, short dark hair plastered to neck, transparent umbrella tilted slightly forward, neon signs reflected in wet asphalt as streaks of pink and cyan, steam rising from a ramen shop on the left, shallow depth of field blurring distant pedestrians into bokeh, anamorphic lens with horizontal flare, teal and orange color grading, 35mm, f/1.8, cinematic film grain
+### 自然语言段落（推荐默认形态）
 
-**Negative**: low quality, deformed, cartoon, anime, bright daylight, watermark, extra limbs
+A cinematic photograph of a young woman walking alone on a rain-soaked Shinjuku street at night. Shot from behind at a three-quarter angle, she wears a black leather jacket glistening with rain and holds a transparent umbrella tilted slightly forward; her short dark hair is plastered to her neck. Neon signs reflect on the wet asphalt as streaks of pink and cyan, and steam rises from a ramen shop on the left side of the frame. Distant pedestrians are blurred into bokeh by a shallow depth of field. Style: anamorphic cinematic look with horizontal lens flare, teal-and-orange color grading, subtle film grain. No text, no watermark, no visible logos.
+
+### 结构化规格（复杂主体/角色/产品时用）
+
+```text
+Render a product shot of the following item:
+
+Item: ceramic pour-over coffee dripper
+Shape: cone, 60° slope, single spiral rib on the inner wall
+Material: matte unglazed stoneware, fine speckled texture
+Color: warm off-white body, charcoal rim
+Size cue: sits on a walnut wood board, human hand out of frame
+
+Scene: soft morning light from a window on the left, thin steam rising from the dripper, shallow depth of field, background blurred to a neutral warm gray.
+Composition: centered, eye-level, product fills the middle third of the frame.
+No text, no watermark.
+```
