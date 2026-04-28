@@ -1,0 +1,31 @@
+{
+  "name": "videoinu-cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Videoinu CLI — manage workflows, run generations, upload/download files",
+  "type": "module",
+  "bin": {
+    "videoinu": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "commander": "^13.1.0",
+    "zod": "^3.25.67"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.3.3",
+    "vitest": "^4.0.16"
+  }
+}
