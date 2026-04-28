@@ -50,7 +50,7 @@ const configCmd = program
   .command("config")
   .description(
     "Read/write config key-value pairs stored in ~/.videoinu/config.json. " +
-    "Keys: access_key (JWT token), api_base (API URL, default https://videoinu.com)."
+    "Keys: access_key (JWT token). API endpoint is fixed to https://videoinu.com."
   )
 
 configCmd

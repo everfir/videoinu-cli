@@ -1,12 +1,36 @@
 {
   "name": "videoinu-cli",
   "version": "0.1.0",
-  "private": true,
-  "description": "Videoinu CLI — manage workflows, run generations, upload/download files",
+  "description": "Videoinu CLI — run AI workflows (image/video/audio generation) on videoinu.com. Designed for both humans and AI agents.",
+  "license": "Apache-2.0",
+  "author": "Everfir",
+  "homepage": "https://github.com/everfir/videoinu-cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/everfir/videoinu-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/everfir/videoinu-cli/issues"
+  },
+  "keywords": [
+    "videoinu",
+    "cli",
+    "ai",
+    "workflow",
+    "video-generation",
+    "image-generation",
+    "audio-generation",
+    "agent"
+  ],
   "type": "module",
   "bin": {
     "videoinu": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsup",
     "clean": "rm -rf dist",
@@ -14,7 +38,8 @@
     "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "netdiag": "npx tsx scripts/netdiag.ts"
+    "netdiag": "npx tsx scripts/netdiag.ts",
+    "prepublishOnly": "pnpm run clean && pnpm run build"
   },
   "engines": {
     "node": ">=18"
