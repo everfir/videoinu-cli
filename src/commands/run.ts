@@ -69,7 +69,7 @@ export async function runRun(opts: {
 
   const shouldReview = opts.review ?? needsArkReview(definition)
   if (shouldReview && createdNodes.length > 0) {
-    await reviewInputNodes(createdNodes, { timeout: opts.timeout || 300, interval: opts.interval || 5 })
+    await reviewInputNodes(createdNodes, { timeout: opts.timeout || 300, interval: opts.interval || 15 })
   }
 
   const estimate = await estimateCost(opts.definitionId, inputs)

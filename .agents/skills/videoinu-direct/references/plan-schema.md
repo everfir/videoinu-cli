@@ -92,6 +92,19 @@ Prompt 数据: ./<同前缀>.prompts.json
 }
 ```
 
+### Step key 命名约定
+
+`.prompts.json` 的 `steps` key 和 `.md` 「执行步骤」里用同一套命名，让读者一眼看出每步的 pre-production 层级：
+
+| Key | 含义 | 何时用 |
+|-----|------|-------|
+| `step_N` | 通用编号步骤 | 没有明确层级分类的素材生成步骤 |
+| `step_cs_M` | 主体 M 的设定图（character/concept sheet） | 跑设定图时（触发判据见 SKILL.md「Pre-production 两层资产」） |
+| `step_sb_N` | 镜头 N 的分镜图（storyboard） | 跑分镜图时 |
+| `shot_N` | 正片镜头 N | 所有正片 video 产出 |
+
+`M` 按主体编号（`cs_1` / `cs_2`），`N` 按镜头编号（`sb_01` / `shot_01`）。同一个 N 下的 `sb_N` 和 `shot_N` 一一对应——`sb_N` 只传回 `shot_N`，不要跨镜头复用。简单单镜头任务可以只用 `step_N` + `shot_01`，不强制套完整层级。
+
 ### 步骤间引用
 
 direct 只负责：
