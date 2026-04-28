@@ -7,7 +7,6 @@ import { runDoctor } from "./commands/doctor"
 import { runRun } from "./commands/run"
 import { runStatus } from "./commands/status"
 import { runWorkflowList } from "./commands/workflow-list"
-import { CONFIG_FILE_PATH, getConfigValue, KNOWN_KEYS, loadConfig, setConfigValue } from "./config"
 import { uploadFilePublic } from "./upload"
 import { downloadUrls, getDefinition } from "./workflow"
 
@@ -28,7 +27,7 @@ CONTRACT:
   - All commands output structured JSON to stdout. Parse stdout as JSON.
   - Progress and logs go to stderr. Do not parse stderr as JSON.
   - Exit code 0 = success. Non-zero = error (stderr has message, stdout has JSON with "error" key).
-  - Auth is required for all commands except "config" and "doctor".
+  - Auth is required for all commands except "doctor".
   - Assets are addressed by local file paths. Inputs take local file paths, URLs, or inline text/JSON.
     Outputs are always written to local files via required --download-dir + --download-prefix.
 
@@ -43,55 +42,6 @@ TYPICAL AGENT WORKFLOW:
        --download-dir ./out --download-prefix hero-portrait             # resume when not using --wait`
   )
   .version("0.1.0")
-
-// ─── config ─────────────────────────────────────────────────────
-
-const configCmd = program
-  .command("config")
-  .description(
-    "Read/write config key-value pairs stored in ~/.videoinu/config.json. " +
-      "Keys: access_key (JWT token). API endpoint is fixed to https://videoinu.com."
-  )
-
-configCmd
-  .command("set")
-  .description("Set a config key. Output: {key, set: true, path}.")
-  .argument("<key>", `one of: ${Object.keys(KNOWN_KEYS).join(", ")}`)
-  .argument("<value>", "value to store (string)")
-  .action((key: string, value: string) => {
-    setConfigValue(key, value)
-    console.log(JSON.stringify({ key: key.toLowerCase(), set: true, path: CONFIG_FILE_PATH }))
-  })
-
-configCmd
-  .command("get")
-  .description("Get a config value. Output: {key, value} where value is string or null if unset.")
-  .argument("<key>", "config key to read")
-  .action((key: string) => {
-    const value = getConfigValue(key)
-    console.log(JSON.stringify({ key: key.toLowerCase(), value: value ?? null }))
-  })
-
-configCmd
-  .command("list")
-  .description(
-    "List all config key-value pairs. Keys containing 'key' are masked (first 8 chars + '...'). Output: {key: value, ...}."
-  )
-  .action(() => {
-    const config = loadConfig()
-    const safe: Record<string, string | undefined> = {}
-    for (const [k, v] of Object.entries(config)) {
-      safe[k] = k.includes("key") && v ? `${v.slice(0, 8)}...` : v
-    }
-    console.log(JSON.stringify(safe))
-  })
-
-configCmd
-  .command("path")
-  .description("Print config file absolute path. Output: {path}.")
-  .action(() => {
-    console.log(JSON.stringify({ path: CONFIG_FILE_PATH }))
-  })
 
 // ─── auth ───────────────────────────────────────────────────────
 

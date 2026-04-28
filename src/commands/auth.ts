@@ -13,20 +13,14 @@ export async function runAuthSave(token: string) {
 }
 
 export async function runAuthStatus() {
-  const { key, source } = resolveAccessKey()
-
-  const sourceLabel =
-    source === "credentials"
-      ? `credentials file (${CREDENTIALS_FILE_PATH})`
-      : source === "config"
-        ? "config file (access_key)"
-        : null
+  const { key } = resolveAccessKey()
+  const exists = fs.existsSync(CREDENTIALS_FILE_PATH)
 
   console.log(
     JSON.stringify({
       authenticated: !!key,
-      source: sourceLabel,
-      credentials_file_exists: fs.existsSync(CREDENTIALS_FILE_PATH),
+      source: key ? `credentials file (${CREDENTIALS_FILE_PATH})` : null,
+      credentials_file_exists: exists,
     })
   )
 }

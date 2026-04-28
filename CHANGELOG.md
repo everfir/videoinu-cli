@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### 破坏性变更
+
+- 移除 `config set/get/list/path` 命令，以及 `~/.videoinu/config.json` 的读取。access key 统一通过 `auth save/status/verify/logout` 管理，只存 `~/.videoinu/credentials.json`。若老版本曾用 `config set access_key` 存过 token，升级后需重新运行 `videoinu auth save <token>`。
+
 ## [0.1.1] - 2026-04-28
 
 ### 变更

@@ -81,7 +81,6 @@ videoinu run <definition-id> \
 | 命令 | 作用 |
 |---|---|
 | `auth save/status/verify/logout` | 管理 access key |
-| `config set/get/list/path` | 读写配置（目前仅 `access_key`） |
 | `doctor` | 认证 + 端点连通 + token 有效性检查 |
 | `workflow list` | 列出工作流定义，支持 `--search / --group / --function / --tag` |
 | `workflow describe <def-id>` | 输出完整 `input_schema` / `output_configs` |
@@ -183,9 +182,6 @@ run <def-id> --input-spec ... --wait --download-dir ... --download-prefix ...
 | 文件 | 内容 | 权限 |
 |---|---|---|
 | `~/.videoinu/credentials.json` | `auth save` 写入的 access key | 0600 |
-| `~/.videoinu/config.json` | 用户配置（目前仅 `access_key`） | 默认 |
-
-优先级：`config.json` > `credentials.json`。推荐用 `videoinu auth save` 管理凭据。
 
 Access key 即身份凭证，等同于账号密码，请勿提交到代码仓库或分享给他人。泄露后可通过 videoinu.com 重新生成。
 

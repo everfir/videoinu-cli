@@ -3,60 +3,14 @@ import os from "node:os"
 import path from "node:path"
 
 const CONFIG_DIR = path.join(os.homedir(), ".videoinu")
-const CONFIG_FILE = path.join(CONFIG_DIR, "config.json")
 const CREDENTIALS_FILE = path.join(CONFIG_DIR, "credentials.json")
 
 const API_BASE_URL = "https://videoinu.com"
 
-export const KNOWN_KEYS: Record<string, string> = {
-  access_key: "Videoinu access key (JWT token from Profile -> Copy Access Key)",
-}
+type AccessKeySource = "credentials" | null
 
-interface Config {
-  [key: string]: string | undefined
-}
-
-export function loadConfig(): Config {
-  try {
-    const raw = fs.readFileSync(CONFIG_FILE, "utf-8")
-    const parsed = JSON.parse(raw) as Config
-    const normalized: Config = {}
-    for (const [k, v] of Object.entries(parsed)) {
-      normalized[k.toLowerCase()] = v
-    }
-    return normalized
-  } catch {
-    return {}
-  }
-}
-
-function saveConfig(config: Config): void {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true })
-  fs.writeFileSync(CONFIG_FILE, `${JSON.stringify(config, null, 2)}\n`, "utf-8")
-}
-
-export function setConfigValue(key: string, value: string): void {
-  const normalized = key.toLowerCase()
-  if (!(normalized in KNOWN_KEYS)) {
-    const allowed = Object.keys(KNOWN_KEYS).join(", ")
-    throw new Error(`unknown config key "${key}". Allowed keys: ${allowed}`)
-  }
-  const config = loadConfig()
-  config[normalized] = value
-  saveConfig(config)
-}
-
-export function getConfigValue(key: string): string | undefined {
-  return loadConfig()[key.toLowerCase()]
-}
-
-type AccessKeySource = "config" | "credentials" | null
-
-/** 读取 access key，同时返回来源。优先级：config.json > credentials.json */
+/** 读取 access key，同时返回来源。 */
 export function resolveAccessKey(): { key: string | undefined; source: AccessKeySource } {
-  const configVal = loadConfig().access_key
-  if (configVal) return { key: configVal, source: "config" }
-
   try {
     const raw = fs.readFileSync(CREDENTIALS_FILE, "utf-8")
     const parsed = JSON.parse(raw) as { access_key?: string }
@@ -93,5 +47,4 @@ export function getBaseUrl(): string {
   return API_BASE_URL
 }
 
-export const CONFIG_FILE_PATH = CONFIG_FILE
 export const CREDENTIALS_FILE_PATH = CREDENTIALS_FILE
