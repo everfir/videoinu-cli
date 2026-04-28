@@ -6,9 +6,15 @@
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-04-28
+
 ### 破坏性变更
 
 - 移除 `config set/get/list/path` 命令，以及 `~/.videoinu/config.json` 的读取。access key 统一通过 `auth save/status/verify/logout` 管理，只存 `~/.videoinu/credentials.json`。若老版本曾用 `config set access_key` 存过 token，升级后需重新运行 `videoinu auth save <token>`。
+
+### CI
+
+- 发布流水线：发布前升级 npm 到最新版；移除未使用的 `NODE_AUTH_TOKEN` 环境变量。
 
 ## [0.1.1] - 2026-04-28
 
@@ -32,6 +38,7 @@
 - MD5 缓存，同文件不重复上传
 - 面向 AI agent 的输出契约：stdout 纯 JSON、stderr 日志、退出码标准化
 
-[Unreleased]: https://github.com/everfir/videoinu-cli/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/everfir/videoinu-cli/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/everfir/videoinu-cli/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/everfir/videoinu-cli/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/everfir/videoinu-cli/releases/tag/v0.1.0

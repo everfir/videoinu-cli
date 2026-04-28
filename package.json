@@ -1,6 +1,6 @@
 {
   "name": "@everfir/videoinu-cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Videoinu CLI — run AI workflows (image/video/audio generation) on videoinu.com. Designed for both humans and AI agents.",
   "license": "Apache-2.0",
   "author": "Everfir",
