@@ -32,6 +32,26 @@ npx @everfir/videoinu-cli <command>
 
 安装后终端里可直接用 `videoinu` 命令（二进制名独立于包名），执行 `videoinu --help` 验证。
 
+## 安装 AI Agent Skills（可选）
+
+仓库同时提供两个 agent skill，装好后你的 AI agent（Claude Code、Codex、Cursor、OpenCode、Cline 等 50+ agent）能自动理解如何调 `videoinu` 命令：
+
+- **videoinu-cli** — 执行层：跑 workflow、查状态、下载产物
+- **videoinu-direct** — 创作层：prompt 工程、分镜规划、多步 Plan 编排
+
+通过 [`skills`](https://github.com/vercel-labs/skills) 安装（推荐，一条命令适配所有 agent）：
+
+```bash
+# 全局安装两个 skill 到你已装的所有 agent
+npx skills add everfir/videoinu-cli -y -g
+
+# 只装到 Claude Code
+npx skills add everfir/videoinu-cli -y -g -a claude-code
+
+# 只装其中一个 skill
+npx skills add everfir/videoinu-cli -y -g -s videoinu-cli
+```
+
 ## 快速开始
 
 ```bash

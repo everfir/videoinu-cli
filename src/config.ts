@@ -90,10 +90,6 @@ export function removeAccessKey(): boolean {
 }
 
 export function getBaseUrl(): string {
-  if (process.env.NODE_ENV !== "production") {
-    const devOverride = process.env.VIDEOINU_DEV_API_BASE
-    if (devOverride) return devOverride.replace(/\/+$/, "")
-  }
   return API_BASE_URL
 }
 
