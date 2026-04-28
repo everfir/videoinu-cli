@@ -95,7 +95,6 @@ export function summarizeBrief(def: Record<string, unknown>): Record<string, unk
   return {
     id: def.id ?? "",
     name: def.name ?? "",
-    lane: extractTagValue(tags, "lane:"),
     group: extractTagValue(tags, "group:"),
     function: extractTagValue(tags, "function:"),
     public: def.public ?? false,

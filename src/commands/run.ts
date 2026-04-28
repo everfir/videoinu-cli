@@ -80,7 +80,7 @@ export async function runRun(opts: {
   // ark asset 审核：--review 显式指定，或自动检测 seedance 系列
   const shouldReview = opts.review ?? needsArkReview(definition)
   if (shouldReview && createdNodes.length > 0) {
-    await reviewInputNodes(createdNodes, { timeout: opts.timeout, interval: opts.interval })
+    await reviewInputNodes(createdNodes, { timeout: opts.timeout || 300, interval: opts.interval || 5 })
   }
 
   // 价格预估

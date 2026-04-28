@@ -170,12 +170,11 @@ wfCmd
   .command("list")
   .description(
     "List available workflow definitions (uses local cache, syncs incrementally). " +
-    "Output: {definitions: [{id, name, lane, group, function, public}]}. " +
+    "Output: {definitions: [{id, name, group, function, public}]}. " +
     "Use --search for fuzzy text matching across all fields. " +
-    "Use --lane/--group/--function for exact tag-based filtering."
+    "Use --group/--function for exact tag-based filtering."
   )
   .option("--search <text>", "case-insensitive substring match across all fields (name, id, tags)")
-  .option("--lane <value>", "exact match on lane tag (e.g. 'image', 'video', 'audio')")
   .option("--group <value>", "exact match on group tag")
   .option("--function <value>", "exact match on function tag (e.g. 'generate', 'upscale', 'edit')")
   .option("--tag <value...>", "require exact tag match; repeatable, all must match")
@@ -183,7 +182,6 @@ wfCmd
   .action(
     async (opts: {
       search?: string
-      lane?: string
       group?: string
       function?: string
       tag?: string[]
@@ -191,7 +189,6 @@ wfCmd
     }) => {
       await runWorkflowList({
         search: opts.search,
-        lane: opts.lane,
         group: opts.group,
         fn: opts.function,
         tag: opts.tag,
@@ -259,10 +256,10 @@ TIMING: --wait blocks until the workflow reaches a terminal status. Typical dura
   .option("--graph-id <id>", "run inside this existing graph. Mutually exclusive with --new-graph")
   .option("--new-graph <name>", "create a new graph with this name and run inside it. Mutually exclusive with --graph-id")
   .option("--asset-name <name>", "name for the created Asset (auto-generated if omitted). Ignored when --graph-id or --new-graph is used")
-  .option("--count <n>", "run the same workflow N times with identical inputs to generate multiple variants", parseInt, 1)
+  .option("--count <n>", "run the same workflow N times with identical inputs to generate multiple variants", (v) => parseInt(v, 10), 1)
   .option("--wait", "block until all instances reach terminal status (completed/failed/cancelled)")
-  .option("--timeout <seconds>", "max seconds to wait (0 = no limit). Only effective with --wait", parseInt, 0)
-  .option("--interval <seconds>", "polling interval in seconds. Only effective with --wait", parseInt, 3)
+  .option("--timeout <seconds>", "max seconds to wait (0 = no limit). Only effective with --wait", (v) => parseInt(v, 10), 0)
+  .option("--interval <seconds>", "polling interval in seconds. Only effective with --wait", (v) => parseInt(v, 10), 3)
   .option("--download-dir <dir>", "download output files to this directory. Requires --wait")
   .option("--download-prefix <prefix>", "filename prefix for downloaded files. Requires --download-dir")
   .option("--review", "force ark asset content review for media inputs (auto-detected for Seedance2 workflows)")
@@ -331,8 +328,8 @@ OUTPUT: {instance_id, status: 'pending'|'running'|'completed'|'failed'|'cancelle
   With --download-dir: adds downloaded: string[] (local file paths)`
   )
   .argument("<instance-id>", "workflow instance ID (from 'run' output's instance_ids array)")
-  .option("--poll <timeout-seconds>", "block and poll until terminal status or timeout (value is max seconds, e.g. --poll 300)", parseInt)
-  .option("--interval <seconds>", "polling interval in seconds. Only effective with --poll", parseInt, 3)
+  .option("--poll <timeout-seconds>", "block and poll until terminal status or timeout (value is max seconds, e.g. --poll 300)", (v) => parseInt(v, 10))
+  .option("--interval <seconds>", "polling interval in seconds. Only effective with --poll", (v) => parseInt(v, 10), 3)
   .option("--outputs", "resolve output core nodes and include in JSON output")
   .option("--download-dir <dir>", "download output files to this directory (implies --outputs)")
   .option("--download-prefix <prefix>", "filename prefix for downloaded files. Requires --download-dir")
@@ -414,8 +411,8 @@ arkCmd
   )
   .argument("<file-or-id>", "local file path or existing core_node_id")
   .option("--wait", "block until review completes (Active) or fails")
-  .option("--timeout <seconds>", "max seconds to wait", parseInt, 300)
-  .option("--interval <seconds>", "polling interval in seconds", parseInt, 5)
+  .option("--timeout <seconds>", "max seconds to wait", (v) => parseInt(v, 10), 300)
+  .option("--interval <seconds>", "polling interval in seconds", (v) => parseInt(v, 10), 5)
   .action(async (fileOrId: string, opts: { wait?: boolean; timeout: number; interval: number }) => {
     // 判断是文件路径还是 core_node_id
     let coreNodeId: string
