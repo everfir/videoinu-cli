@@ -2,14 +2,14 @@ import os from "node:os"
 import path from "node:path"
 import { Command } from "commander"
 import { ApiError, apiGet } from "./api"
-import { loadConfig, setConfigValue, getConfigValue, CONFIG_FILE_PATH, KNOWN_KEYS } from "./config"
-import { runAuthSave, runAuthStatus, runAuthVerify, runAuthLogout } from "./commands/auth"
-import { runWorkflowList } from "./commands/workflow-list"
+import { runAuthLogout, runAuthSave, runAuthStatus, runAuthVerify } from "./commands/auth"
+import { runDoctor } from "./commands/doctor"
 import { runRun } from "./commands/run"
 import { runStatus } from "./commands/status"
-import { runDoctor } from "./commands/doctor"
-import { getDefinition, downloadUrls } from "./workflow"
+import { runWorkflowList } from "./commands/workflow-list"
+import { CONFIG_FILE_PATH, getConfigValue, KNOWN_KEYS, loadConfig, setConfigValue } from "./config"
 import { uploadFilePublic } from "./upload"
+import { downloadUrls, getDefinition } from "./workflow"
 
 const program = new Command()
 
@@ -50,14 +50,12 @@ const configCmd = program
   .command("config")
   .description(
     "Read/write config key-value pairs stored in ~/.videoinu/config.json. " +
-    "Keys: access_key (JWT token). API endpoint is fixed to https://videoinu.com."
+      "Keys: access_key (JWT token). API endpoint is fixed to https://videoinu.com."
   )
 
 configCmd
   .command("set")
-  .description(
-    "Set a config key. Output: {key, set: true, path}."
-  )
+  .description("Set a config key. Output: {key, set: true, path}.")
   .argument("<key>", `one of: ${Object.keys(KNOWN_KEYS).join(", ")}`)
   .argument("<value>", "value to store (string)")
   .action((key: string, value: string) => {
@@ -76,7 +74,9 @@ configCmd
 
 configCmd
   .command("list")
-  .description("List all config key-value pairs. Keys containing 'key' are masked (first 8 chars + '...'). Output: {key: value, ...}.")
+  .description(
+    "List all config key-value pairs. Keys containing 'key' are masked (first 8 chars + '...'). Output: {key: value, ...}."
+  )
   .action(() => {
     const config = loadConfig()
     const safe: Record<string, string | undefined> = {}
@@ -99,16 +99,13 @@ const authCmd = program
   .command("auth")
   .description(
     "Manage access key authentication. " +
-    "The access key is a JWT obtained from videoinu.com (Profile -> Copy Access Key). " +
-    "Stored in ~/.videoinu/credentials.json with 0600 permissions."
+      "The access key is a JWT obtained from videoinu.com (Profile -> Copy Access Key). " +
+      "Stored in ~/.videoinu/credentials.json with 0600 permissions."
   )
 
 authCmd
   .command("save")
-  .description(
-    "Save access key to ~/.videoinu/credentials.json. " +
-    "Output: {status: 'saved', credentials_path}."
-  )
+  .description("Save access key to ~/.videoinu/credentials.json. " + "Output: {status: 'saved', credentials_path}.")
   .argument("<token>", "JWT access key string (from videoinu.com Profile -> Copy Access Key)")
   .action(async (token: string) => {
     await runAuthSave(token)
@@ -118,8 +115,8 @@ authCmd
   .command("status")
   .description(
     "Check whether an access key is configured and its source. " +
-    "Output: {authenticated: bool, source: string|null, credentials_file_exists: bool}. " +
-    "Does NOT verify the key is valid — use 'auth verify' for that."
+      "Output: {authenticated: bool, source: string|null, credentials_file_exists: bool}. " +
+      "Does NOT verify the key is valid — use 'auth verify' for that."
   )
   .action(async () => {
     await runAuthStatus()
@@ -129,7 +126,7 @@ authCmd
   .command("verify")
   .description(
     "Test that the saved access key is accepted by the API (makes a real API call). " +
-    "Output on success: {status: 'verified'}. Throws ApiError if key is invalid or expired."
+      "Output on success: {status: 'verified'}. Throws ApiError if key is invalid or expired."
   )
   .action(async () => {
     await runAuthVerify()
@@ -139,7 +136,7 @@ authCmd
   .command("logout")
   .description(
     "Delete ~/.videoinu/credentials.json. " +
-    "Output: {status: 'logged_out'} or {status: 'no_credentials'} if nothing to remove."
+      "Output: {status: 'logged_out'} or {status: 'no_credentials'} if nothing to remove."
   )
   .action(async () => {
     await runAuthLogout()
@@ -151,8 +148,8 @@ program
   .command("doctor")
   .description(
     "Run diagnostic checks: access_key configured, API endpoint reachable, auth token valid. " +
-    "No auth required (checks auth as one of the diagnostics). " +
-    "Output: {checks: [{name, status: 'ok'|'fail', detail}], allOk: bool}."
+      "No auth required (checks auth as one of the diagnostics). " +
+      "Output: {checks: [{name, status: 'ok'|'fail', detail}], allOk: bool}."
   )
   .action(async () => {
     await runDoctor()
@@ -164,49 +161,41 @@ const wfCmd = program
   .command("workflow")
   .description(
     "List and inspect workflow definitions. " +
-    "A 'definition' is a reusable workflow template (e.g. 'text-to-image', 'video-upscale'). " +
-    "Use 'workflow list' to browse, then 'workflow describe <id>' to see input/output schema before running."
+      "A 'definition' is a reusable workflow template (e.g. 'text-to-image', 'video-upscale'). " +
+      "Use 'workflow list' to browse, then 'workflow describe <id>' to see input/output schema before running."
   )
 
 wfCmd
   .command("list")
   .description(
     "List available workflow definitions (uses local cache, syncs incrementally). " +
-    "Output: {definitions: [{id, name, group, function, public}]}. " +
-    "Use --search for fuzzy text matching across all fields. " +
-    "Use --group/--function for exact tag-based filtering."
+      "Output: {definitions: [{id, name, group, function, public}]}. " +
+      "Use --search for fuzzy text matching across all fields. " +
+      "Use --group/--function for exact tag-based filtering."
   )
   .option("--search <text>", "case-insensitive substring match across all fields (name, id, tags)")
   .option("--group <value>", "exact match on group tag")
   .option("--function <value>", "exact match on function tag (e.g. 'generate', 'upscale', 'edit')")
   .option("--tag <value...>", "require exact tag match; repeatable, all must match")
   .option("--refresh", "bypass cache, fetch full list from API")
-  .action(
-    async (opts: {
-      search?: string
-      group?: string
-      function?: string
-      tag?: string[]
-      refresh?: boolean
-    }) => {
-      await runWorkflowList({
-        search: opts.search,
-        group: opts.group,
-        fn: opts.function,
-        tag: opts.tag,
-        refresh: opts.refresh,
-      })
-    }
-  )
+  .action(async (opts: { search?: string; group?: string; function?: string; tag?: string[]; refresh?: boolean }) => {
+    await runWorkflowList({
+      search: opts.search,
+      group: opts.group,
+      fn: opts.function,
+      tag: opts.tag,
+      refresh: opts.refresh,
+    })
+  })
 
 wfCmd
   .command("describe")
   .description(
     "Show full workflow definition including input_schema and output_configs. " +
-    "IMPORTANT: Always call this before 'run' to understand required inputs. " +
-    "Output: {definition: {id, name, description, input_schema: [{name, display_name, data_type, required, multiple, min_count, max_count, description, json_schema, default_value}], output_configs: [{slot_name, display_name, data_type, role}]}}. " +
-    "data_type values: 'text', 'image', 'video', 'audio', 'json', 'pdf', 'file'. " +
-    "Use input_schema[].name as slot_name keys in --input-spec for 'run'."
+      "IMPORTANT: Always call this before 'run' to understand required inputs. " +
+      "Output: {definition: {id, name, description, input_schema: [{name, display_name, data_type, required, multiple, min_count, max_count, description, json_schema, default_value}], output_configs: [{slot_name, display_name, data_type, role}]}}. " +
+      "data_type values: 'text', 'image', 'video', 'audio', 'json', 'pdf', 'file'. " +
+      "Use input_schema[].name as slot_name keys in --input-spec for 'run'."
   )
   .argument("<definition-id>", "workflow definition ID (from 'workflow list' output)")
   .action(async (definitionId: string) => {
@@ -257,14 +246,36 @@ TIMING: --wait blocks until the workflow reaches a terminal status. Typical dura
     "JSON mapping slot names to values (auto-coerced). See command description for coercion rules."
   )
   .option("--graph-id <id>", "run inside this existing graph. Mutually exclusive with --new-graph")
-  .option("--new-graph <name>", "create a new graph with this name and run inside it. Mutually exclusive with --graph-id")
-  .option("--asset-name <name>", "name for the created Asset (auto-generated if omitted). Ignored when --graph-id or --new-graph is used")
-  .option("--count <n>", "run the same workflow N times with identical inputs to generate multiple variants", (v) => parseInt(v, 10), 1)
-  .option("--wait", "block until all instances reach terminal status (completed/failed/cancelled). Required when you want outputs.")
-  .option("--timeout <seconds>", "max seconds to wait (0 = no limit). Only effective with --wait", (v) => parseInt(v, 10), 0)
+  .option(
+    "--new-graph <name>",
+    "create a new graph with this name and run inside it. Mutually exclusive with --graph-id"
+  )
+  .option(
+    "--asset-name <name>",
+    "name for the created Asset (auto-generated if omitted). Ignored when --graph-id or --new-graph is used"
+  )
+  .option(
+    "--count <n>",
+    "run the same workflow N times with identical inputs to generate multiple variants",
+    (v) => parseInt(v, 10),
+    1
+  )
+  .option(
+    "--wait",
+    "block until all instances reach terminal status (completed/failed/cancelled). Required when you want outputs."
+  )
+  .option(
+    "--timeout <seconds>",
+    "max seconds to wait (0 = no limit). Only effective with --wait",
+    (v) => parseInt(v, 10),
+    0
+  )
   .option("--interval <seconds>", "polling interval in seconds. Only effective with --wait", (v) => parseInt(v, 10), 15)
   .option("--download-dir <dir>", "REQUIRED with --wait. Directory for downloaded output files.")
-  .option("--download-prefix <prefix>", "REQUIRED with --wait. Semantic filename prefix (e.g. 'shot1-hero'); filenames become <prefix>_<slot>_<idx>.<ext>. Random/hash-like values are discouraged.")
+  .option(
+    "--download-prefix <prefix>",
+    "REQUIRED with --wait. Semantic filename prefix (e.g. 'shot1-hero'); filenames become <prefix>_<slot>_<idx>.<ext>. Random/hash-like values are discouraged."
+  )
   .option("--review", "force content review for media inputs (auto-detected for Seedance2 workflows)")
   .option("--no-review", "skip content review even for Seedance2 workflows")
   .option("--estimate", "estimate cost without executing. Output: {estimated_cost, user_credits, can_afford}")
@@ -293,14 +304,12 @@ TIMING: --wait blocks until the workflow reaches a terminal status. Typical dura
       if (opts.wait && !opts.estimate && (!opts.downloadDir || !opts.downloadPrefix)) {
         process.stderr.write(
           "Error: --wait requires both --download-dir and --download-prefix. " +
-          "Outputs are always written to disk. Example: --download-dir ./out --download-prefix shot1-hero\n"
+            "Outputs are always written to disk. Example: --download-dir ./out --download-prefix shot1-hero\n"
         )
         process.exit(1)
       }
       if ((opts.downloadDir || opts.downloadPrefix) && !opts.wait) {
-        process.stderr.write(
-          "Error: --download-dir / --download-prefix require --wait.\n"
-        )
+        process.stderr.write("Error: --download-dir / --download-prefix require --wait.\n")
         process.exit(1)
       }
 
@@ -338,11 +347,18 @@ OUTPUT: {instance_id, status: 'pending'|'running'|'completed'|'failed'|'cancelle
   With --poll:    blocks until terminal status or timeout, progress on stderr`
   )
   .argument("<instance-id>", "workflow instance ID (from 'run' output's instance_ids array)")
-  .option("--poll <timeout-seconds>", "block and poll until terminal status or timeout (value is max seconds, e.g. --poll 300)", (v) => parseInt(v, 10))
+  .option(
+    "--poll <timeout-seconds>",
+    "block and poll until terminal status or timeout (value is max seconds, e.g. --poll 300)",
+    (v) => parseInt(v, 10)
+  )
   .option("--interval <seconds>", "polling interval in seconds. Only effective with --poll", (v) => parseInt(v, 10), 15)
   .option("--outputs", "resolve outputs and download them to disk. Requires --download-dir and --download-prefix.")
   .option("--download-dir <dir>", "REQUIRED with --outputs. Directory for downloaded output files.")
-  .option("--download-prefix <prefix>", "REQUIRED with --outputs. Semantic filename prefix (e.g. 'shot1-hero'); filenames become <prefix>_<slot>_<idx>.<ext>. Random/hash-like values are discouraged.")
+  .option(
+    "--download-prefix <prefix>",
+    "REQUIRED with --outputs. Semantic filename prefix (e.g. 'shot1-hero'); filenames become <prefix>_<slot>_<idx>.<ext>. Random/hash-like values are discouraged."
+  )
   .action(
     async (
       instanceId: string,
@@ -357,14 +373,12 @@ OUTPUT: {instance_id, status: 'pending'|'running'|'completed'|'failed'|'cancelle
       if (opts.outputs && (!opts.downloadDir || !opts.downloadPrefix)) {
         process.stderr.write(
           "Error: --outputs requires both --download-dir and --download-prefix. " +
-          "Outputs are always written to disk. Example: --download-dir ./out --download-prefix shot1-hero\n"
+            "Outputs are always written to disk. Example: --download-dir ./out --download-prefix shot1-hero\n"
         )
         process.exit(1)
       }
       if ((opts.downloadDir || opts.downloadPrefix) && !opts.outputs) {
-        process.stderr.write(
-          "Error: --download-dir / --download-prefix require --outputs.\n"
-        )
+        process.stderr.write("Error: --download-dir / --download-prefix require --outputs.\n")
         process.exit(1)
       }
       await runStatus(instanceId, opts)
@@ -377,10 +391,10 @@ program
   .command("upload")
   .description(
     "Pre-upload a local file to Videoinu (MD5-cached so the same file won't re-upload). " +
-    "asset_type is auto-detected from extension: image (png/jpg/webp/gif), video (mp4/mov/webm), audio (mp3/wav/ogg/flac), text (txt), json, pdf. Max 200MB. " +
-    "Output: {local_path, asset_type, remote_url?, cached?}. " +
-    "You do NOT need to call 'upload' before 'run' — 'run --input-spec' auto-uploads any local path. " +
-    "Use 'upload' only when you want to pre-upload (e.g. for dedup) or obtain remote_url for sharing."
+      "asset_type is auto-detected from extension: image (png/jpg/webp/gif), video (mp4/mov/webm), audio (mp3/wav/ogg/flac), text (txt), json, pdf. Max 200MB. " +
+      "Output: {local_path, asset_type, remote_url?, cached?}. " +
+      "You do NOT need to call 'upload' before 'run' — 'run --input-spec' auto-uploads any local path. " +
+      "Use 'upload' only when you want to pre-upload (e.g. for dedup) or obtain remote_url for sharing."
   )
   .argument("<file>", "local file path (absolute or relative)")
   .action(async (file: string) => {
@@ -394,8 +408,8 @@ program
   .command("credits")
   .description(
     "Show account credits balance and subscription info. " +
-    "Output: {credits: number, subscription_type, duration_type, nickname, email}. " +
-    "Check credits before running expensive workflows to avoid insufficient-credits errors."
+      "Output: {credits: number, subscription_type, duration_type, nickname, email}. " +
+      "Check credits before running expensive workflows to avoid insufficient-credits errors."
   )
   .action(async () => {
     const data = (await apiGet("/account/get_user_info", undefined, "/api")) as Record<string, unknown>
@@ -420,14 +434,21 @@ program
   .command("download")
   .description(
     "Download files from URLs to local disk. Rarely needed — 'run --wait' and 'status --outputs' already download automatically. " +
-    "Use this only for one-off URL saves (e.g. a shared remote_url from another user). " +
-    "REQUIRES --prefix: a short semantic slug describing what these files are (e.g. 'hero-portrait', 'shot1-storyboard'). " +
-    "Output filenames: <prefix>_<idx>.<ext>. " +
-    "Output: {output_dir, downloaded: string[], total: number, errors?: [{url, error}]}."
+      "Use this only for one-off URL saves (e.g. a shared remote_url from another user). " +
+      "REQUIRES --prefix: a short semantic slug describing what these files are (e.g. 'hero-portrait', 'shot1-storyboard'). " +
+      "Output filenames: <prefix>_<idx>.<ext>. " +
+      "Output: {output_dir, downloaded: string[], total: number, errors?: [{url, error}]}."
   )
   .argument("<urls...>", "one or more URLs to download (space-separated)")
-  .option("-o, --output-dir <dir>", "target directory (default: ~/Downloads/videoinu_results)", path.join(os.homedir(), "Downloads/videoinu_results"))
-  .requiredOption("--prefix <prefix>", "REQUIRED. Semantic filename prefix describing the content (e.g. 'hero-portrait'). Random/hash-like prefixes are discouraged.")
+  .option(
+    "-o, --output-dir <dir>",
+    "target directory (default: ~/Downloads/videoinu_results)",
+    path.join(os.homedir(), "Downloads/videoinu_results")
+  )
+  .requiredOption(
+    "--prefix <prefix>",
+    "REQUIRED. Semantic filename prefix describing the content (e.g. 'hero-portrait'). Random/hash-like prefixes are discouraged."
+  )
   .action(async (urls: string[], opts: { outputDir: string; prefix: string }) => {
     const { downloaded, errors } = await downloadUrls(urls, opts.outputDir, opts.prefix)
     const result: Record<string, unknown> = { output_dir: opts.outputDir, downloaded, total: downloaded.length }

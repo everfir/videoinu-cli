@@ -94,11 +94,7 @@ export async function apiGet(
   return unwrapEnvelope(res)
 }
 
-export async function apiPost(
-  path: string,
-  body?: Record<string, unknown>,
-  prefix?: string
-): Promise<unknown> {
+export async function apiPost(path: string, body?: Record<string, unknown>, prefix?: string): Promise<unknown> {
   const res = await fetch(buildUrl(path, prefix), {
     method: "POST",
     headers: authHeaders("POST"),

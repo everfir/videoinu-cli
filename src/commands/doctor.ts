@@ -1,4 +1,4 @@
-import { resolveAccessKey, getBaseUrl } from "../config"
+import { getBaseUrl, resolveAccessKey } from "../config"
 
 interface Check {
   name: string
@@ -14,9 +14,7 @@ export async function runDoctor() {
   checks.push({
     name: "access_key",
     status: key ? "ok" : "fail",
-    detail: key
-      ? `configured (from ${source})`
-      : "not set — run: videoinu auth save <token>",
+    detail: key ? `configured (from ${source})` : "not set — run: videoinu auth save <token>",
   })
 
   // 2. endpoint + auth（一次请求，按 status code 分三种情况）

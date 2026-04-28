@@ -1,12 +1,12 @@
 import fs from "node:fs"
-import path from "node:path"
 import os from "node:os"
+import path from "node:path"
 
 const CONFIG_DIR = path.join(os.homedir(), ".videoinu")
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.json")
 const CREDENTIALS_FILE = path.join(CONFIG_DIR, "credentials.json")
 
-export const API_BASE_URL = "https://videoinu.com"
+const API_BASE_URL = "https://videoinu.com"
 
 export const KNOWN_KEYS: Record<string, string> = {
   access_key: "Videoinu access key (JWT token from Profile -> Copy Access Key)",
@@ -50,7 +50,7 @@ export function getConfigValue(key: string): string | undefined {
   return loadConfig()[key.toLowerCase()]
 }
 
-export type AccessKeySource = "config" | "credentials" | null
+type AccessKeySource = "config" | "credentials" | null
 
 /** 读取 access key，同时返回来源。优先级：config.json > credentials.json */
 export function resolveAccessKey(): { key: string | undefined; source: AccessKeySource } {
@@ -97,6 +97,5 @@ export function getBaseUrl(): string {
   return API_BASE_URL
 }
 
-export const CONFIG_DIR_PATH = CONFIG_DIR
 export const CONFIG_FILE_PATH = CONFIG_FILE
 export const CREDENTIALS_FILE_PATH = CREDENTIALS_FILE

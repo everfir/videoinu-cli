@@ -1,11 +1,6 @@
 import fs from "node:fs"
-import {
-  resolveAccessKey,
-  saveAccessKey,
-  removeAccessKey,
-  CREDENTIALS_FILE_PATH,
-} from "../config"
 import { apiGet } from "../api"
+import { CREDENTIALS_FILE_PATH, removeAccessKey, resolveAccessKey, saveAccessKey } from "../config"
 
 export async function runAuthSave(token: string) {
   saveAccessKey(token)
@@ -21,9 +16,11 @@ export async function runAuthStatus() {
   const { key, source } = resolveAccessKey()
 
   const sourceLabel =
-    source === "credentials" ? `credentials file (${CREDENTIALS_FILE_PATH})`
-    : source === "config" ? "config file (access_key)"
-    : null
+    source === "credentials"
+      ? `credentials file (${CREDENTIALS_FILE_PATH})`
+      : source === "config"
+        ? "config file (access_key)"
+        : null
 
   console.log(
     JSON.stringify({

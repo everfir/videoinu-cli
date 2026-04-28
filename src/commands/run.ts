@@ -1,15 +1,15 @@
-import {
-  getDefinition,
-  buildInputs,
-  runWorkflow,
-  waitForWorkflow,
-  resolveOutputsAndDownload,
-  progressCallback,
-  estimateCost,
-  type InternalInputNode,
-  type WorkflowDefinition,
-} from "../workflow"
 import { ensureActive } from "../ark-asset"
+import {
+  buildInputs,
+  estimateCost,
+  getDefinition,
+  type InternalInputNode,
+  progressCallback,
+  resolveOutputsAndDownload,
+  runWorkflow,
+  type WorkflowDefinition,
+  waitForWorkflow,
+} from "../workflow"
 
 const REVIEW_MEDIA_TYPES = new Set(["image", "video"])
 
@@ -33,8 +33,7 @@ async function reviewInputNodes(
     const result = await ensureActive(node.core_node_id, {
       timeout: opts.timeout,
       interval: opts.interval,
-      onProgress: (status) =>
-        process.stderr.write(`[review] ${node.slot_name} status=${status}\n`),
+      onProgress: (status) => process.stderr.write(`[review] ${node.slot_name} status=${status}\n`),
     })
     if (result.cached) {
       process.stderr.write(`[review] ${node.slot_name}: already approved (cached)\n`)
@@ -75,23 +74,27 @@ export async function runRun(opts: {
   const estimate = await estimateCost(opts.definitionId, inputs)
 
   if (opts.estimate) {
-    console.log(JSON.stringify({
-      ...estimate,
-      definition_name: definition.name,
-    }, null, 2))
+    console.log(
+      JSON.stringify(
+        {
+          ...estimate,
+          definition_name: definition.name,
+        },
+        null,
+        2
+      )
+    )
     return
   }
 
   if (!estimate.can_afford) {
     throw new Error(
       `Insufficient credits: need ${estimate.estimated_cost}, have ${estimate.user_credits}. ` +
-      `Top up at videoinu.com before running.`
+        `Top up at videoinu.com before running.`
     )
   }
 
-  process.stderr.write(
-    `Cost: ${estimate.estimated_cost} credits (balance: ${estimate.user_credits})\n`
-  )
+  process.stderr.write(`Cost: ${estimate.estimated_cost} credits (balance: ${estimate.user_credits})\n`)
 
   const { instanceIds, assetId, graphId } = await runWorkflow({
     definitionId: opts.definitionId,
@@ -134,18 +137,14 @@ export async function runRun(opts: {
     if (status.warning) instanceResult.warning = status.warning
 
     if (status.status === "completed") {
-      const { items, errors } = await resolveOutputsAndDownload(
-        instance,
-        opts.downloadDir,
-        opts.downloadPrefix
-      )
+      const { items, errors } = await resolveOutputsAndDownload(instance, opts.downloadDir, opts.downloadPrefix)
       instanceResult.outputs = items
       if (errors.length) instanceResult.download_errors = errors
     } else if (status.warning) {
       // 超时未完成，给出续接命令
       process.stderr.write(
         `Timed out. Continue with:\n` +
-        `  videoinu status ${instanceId} --poll 1800 --download-dir ${opts.downloadDir} --download-prefix ${opts.downloadPrefix}\n`
+          `  videoinu status ${instanceId} --poll 1800 --download-dir ${opts.downloadDir} --download-prefix ${opts.downloadPrefix}\n`
       )
     }
 

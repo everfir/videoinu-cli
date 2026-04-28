@@ -1,10 +1,10 @@
 import {
-  getInstanceStatus,
-  waitForWorkflow,
   getInstance,
-  resolveOutputsAndDownload,
-  progressCallback,
+  getInstanceStatus,
   type InstanceStatus,
+  progressCallback,
+  resolveOutputsAndDownload,
+  waitForWorkflow,
 } from "../workflow"
 
 export async function runStatus(
@@ -34,14 +34,10 @@ export async function runStatus(
 
   const result: Record<string, unknown> = { ...status }
 
-  if (opts.outputs) {
+  if (opts.outputs && opts.downloadDir && opts.downloadPrefix) {
     // poll 模式已经拿到 instance，不需要再请求
     if (!instance) instance = await getInstance(instanceId)
-    const { items, errors } = await resolveOutputsAndDownload(
-      instance,
-      opts.downloadDir!,
-      opts.downloadPrefix!
-    )
+    const { items, errors } = await resolveOutputsAndDownload(instance, opts.downloadDir, opts.downloadPrefix)
     result.outputs = items
     if (errors.length) result.download_errors = errors
   }

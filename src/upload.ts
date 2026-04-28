@@ -5,8 +5,8 @@
 
 import crypto from "node:crypto"
 import fs from "node:fs"
-import path from "node:path"
 import os from "node:os"
+import path from "node:path"
 import { z } from "zod"
 import { apiPost, uploadRaw } from "./api"
 
@@ -105,7 +105,7 @@ export async function createJsonCoreNode(content: unknown): Promise<string> {
   return ids[0]
 }
 
-export async function createUrlCoreNode(url: string, assetType: string): Promise<string> {
+async function createUrlCoreNode(url: string, assetType: string): Promise<string> {
   const ids = await createCoreNodes([{ asset_type: assetType, url }])
   return ids[0]
 }
@@ -117,7 +117,7 @@ export async function createUrlCoreNode(url: string, assetType: string): Promise
 /**
  * 内部使用（含 core_node_id），仅模块内消费、不作为 CLI 外部契约
  */
-export interface UploadResult {
+interface UploadResult {
   core_node_id: string
   file_url?: string
   asset_type: string
@@ -125,7 +125,7 @@ export interface UploadResult {
 }
 
 /** 对外 CLI 返回的上传结果（不含任何 ID） */
-export interface PublicUploadResult {
+interface PublicUploadResult {
   local_path: string
   asset_type: string
   remote_url?: string

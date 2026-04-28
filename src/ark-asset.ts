@@ -5,8 +5,8 @@
  */
 
 import fs from "node:fs"
-import path from "node:path"
 import os from "node:os"
+import path from "node:path"
 import { z } from "zod"
 import { apiPost } from "./api"
 
@@ -32,7 +32,7 @@ const QueryResponse = z.object({
   items: z.array(QueryItem),
 })
 
-export type ArkAssetStatus = z.infer<typeof QueryItem>
+type ArkAssetStatus = z.infer<typeof QueryItem>
 
 // ---------------------------------------------------------------------------
 // Cache
@@ -69,8 +69,7 @@ function updateCacheEntry(coreNodeId: string, assetId: string, status: string): 
   writeCache(cache)
 }
 
-/** 读取缓存中的条目（不发请求） */
-export function getCachedStatus(coreNodeId: string): CacheEntry | undefined {
+function getCachedStatus(coreNodeId: string): CacheEntry | undefined {
   return readCache()[coreNodeId]
 }
 
@@ -79,7 +78,7 @@ export function getCachedStatus(coreNodeId: string): CacheEntry | undefined {
 // ---------------------------------------------------------------------------
 
 /** 提交 core_node_id 进行审核，返回 {asset_id, status} */
-export async function submitArkAsset(coreNodeId: string): Promise<{ asset_id: string; status: string }> {
+async function submitArkAsset(coreNodeId: string): Promise<{ asset_id: string; status: string }> {
   // 缓存命中且已 Active，直接返回
   const cached = getCachedStatus(coreNodeId)
   if (cached?.status === "Active") {
@@ -93,7 +92,7 @@ export async function submitArkAsset(coreNodeId: string): Promise<{ asset_id: st
 }
 
 /** 批量查询审核状态 */
-export async function queryArkAssets(coreNodeIds: string[]): Promise<ArkAssetStatus[]> {
+async function queryArkAssets(coreNodeIds: string[]): Promise<ArkAssetStatus[]> {
   if (coreNodeIds.length === 0) return []
   const data = await apiPost("/ark_asset/query", { core_node_ids: coreNodeIds })
   const result = QueryResponse.parse(data)
@@ -109,7 +108,7 @@ export async function queryArkAssets(coreNodeIds: string[]): Promise<ArkAssetSta
 // 轮询等待 Active
 // ---------------------------------------------------------------------------
 
-export interface WaitActiveResult {
+interface WaitActiveResult {
   core_node_id: string
   asset_id: string
   status: string
@@ -152,10 +151,9 @@ export async function ensureActive(
     const status = item?.status ?? "unknown"
     opts?.onProgress?.(status)
 
-    if (status === "Active") {
-      return { core_node_id: coreNodeId, asset_id: item!.asset_id, status: "Active", cached: false }
+    if (item && status === "Active") {
+      return { core_node_id: coreNodeId, asset_id: item.asset_id, status: "Active", cached: false }
     }
-    // 非 Processing 且非 Active，可能是失败状态
     if (status !== "Processing") {
       throw new Error(`Ark asset review failed for ${coreNodeId}: status=${status}`)
     }

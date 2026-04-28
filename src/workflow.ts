@@ -4,11 +4,11 @@
 
 import crypto from "node:crypto"
 import fs from "node:fs"
-import path from "node:path"
 import os from "node:os"
+import path from "node:path"
 import { z } from "zod"
 import { apiGet, apiPost, downloadBuffer } from "./api"
-import { uploadFile, createTextCoreNode, createJsonCoreNode } from "./upload"
+import { createJsonCoreNode, createTextCoreNode, uploadFile } from "./upload"
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -25,10 +25,9 @@ const InputSlotSchema = z.object({
   description: z.string().default(""),
   json_schema: z.unknown().optional(),
   default_value: z.unknown().optional(),
-  shape: z.unknown().optional(),
 })
 
-export type InputSlot = z.infer<typeof InputSlotSchema>
+type InputSlot = z.infer<typeof InputSlotSchema>
 
 const OutputConfigSchema = z.object({
   slot_name: z.string(),
@@ -102,13 +101,10 @@ export function summarizeBrief(def: Record<string, unknown>): Record<string, unk
   }
 }
 
-export async function listDefinitions(opts?: {
-  forceRefresh?: boolean
-  includePublic?: boolean
-}): Promise<Record<string, unknown>[]> {
+export async function listDefinitions(opts?: { forceRefresh?: boolean }): Promise<Record<string, unknown>[]> {
   const cache = readCache()
   const params: Record<string, string | number | boolean> = {
-    include_public: opts?.includePublic !== false ? "true" : "false",
+    include_public: "true",
   }
   if (!opts?.forceRefresh && cache.last_synced_at != null) {
     params.last_updated_at = cache.last_synced_at + 1
@@ -138,7 +134,12 @@ export async function listDefinitions(opts?: {
 }
 
 function normalizeListResponse(data: unknown): Record<string, unknown>[] {
-  if (data && typeof data === "object" && "definitions" in data && Array.isArray((data as Record<string, unknown>).definitions)) {
+  if (
+    data &&
+    typeof data === "object" &&
+    "definitions" in data &&
+    Array.isArray((data as Record<string, unknown>).definitions)
+  ) {
     return (data as Record<string, unknown>).definitions as Record<string, unknown>[]
   }
   if (Array.isArray(data)) return data as Record<string, unknown>[]
@@ -204,7 +205,11 @@ async function resolveInputItem(
       const result = await uploadFile(tmp)
       return { core_node_id: result.core_node_id, asset_type: result.asset_type, source_kind: "url" }
     } finally {
-      try { fs.unlinkSync(tmp) } catch { /* ignore */ }
+      try {
+        fs.unlinkSync(tmp)
+      } catch {
+        /* ignore */
+      }
     }
   }
   throw new Error(`Unknown input type '${type}' for slot '${slot.name}'`)
@@ -277,9 +282,9 @@ export async function buildInputs(
   const missing = inputSchema
     .filter((s) => s.required)
     .filter((s) => {
-      const v = inputs[s.name] as { core_node_ids?: string[] } | undefined
+      const v = inputs[s.name] as { core_node_ids: string[] } | undefined
       const minCount = s.min_count ?? 1
-      return !v || v.core_node_ids!.length < minCount
+      return !v || v.core_node_ids.length < minCount
     })
     .map((s) => s.name)
 
@@ -300,12 +305,9 @@ const EstimateResponse = z.object({
   can_afford: z.boolean(),
 })
 
-export type EstimateResult = z.infer<typeof EstimateResponse>
+type EstimateResult = z.infer<typeof EstimateResponse>
 
-export async function estimateCost(
-  definitionId: string,
-  inputs: Record<string, unknown>
-): Promise<EstimateResult> {
+export async function estimateCost(definitionId: string, inputs: Record<string, unknown>): Promise<EstimateResult> {
   const data = await apiPost(`/wf/definition/${definitionId}/estimate`, { inputs })
   return EstimateResponse.parse(data)
 }
@@ -316,9 +318,7 @@ export async function estimateCost(
 
 const RunResponseSchema = z.object({
   instance_ids: z.array(z.string()).optional(),
-  instances: z
-    .array(z.object({ instance_id: z.string() }))
-    .optional(),
+  instances: z.array(z.object({ instance_id: z.string() })).optional(),
   instance_id: z.string().optional(),
   asset_id: z.string().optional(),
   graph_id: z.string().optional(),
@@ -406,7 +406,7 @@ export async function getInstanceStatus(instanceId: string): Promise<InstanceSta
   return toStatus(await getInstance(instanceId), instanceId)
 }
 
-export interface WaitResult {
+interface WaitResult {
   status: InstanceStatus
   instance: Record<string, unknown>
 }
@@ -419,7 +419,7 @@ export async function waitForWorkflow(
     onProgress?: (status: InstanceStatus) => void
   }
 ): Promise<WaitResult> {
-  const timeout = opts?.timeout ?? 0  // 0 = 无限等待
+  const timeout = opts?.timeout ?? 0 // 0 = 无限等待
   const interval = opts?.interval ?? 15
   const start = Date.now()
 
@@ -453,7 +453,7 @@ const BatchCoreNodesResponse = z.object({
   core_nodes: z.array(z.record(z.unknown())).optional(),
 })
 
-export async function batchGetCoreNodes(ids: string[]): Promise<Record<string, unknown>[]> {
+async function batchGetCoreNodes(ids: string[]): Promise<Record<string, unknown>[]> {
   if (ids.length === 0) return []
   const data = await apiPost("/core_nodes/batch_v2", { core_node_ids: ids })
   // data 可能是 { core_nodes: [...] } 或直接是 [...]
@@ -475,8 +475,9 @@ function extractOutputRefs(instance: Record<string, unknown>): InternalOutputRef
   const outputs = instance.outputs
   if (!Array.isArray(outputs)) return []
   return outputs
-    .filter((item): item is Record<string, unknown> =>
-      typeof item === "object" && item !== null && typeof (item as Record<string, unknown>).core_node_id === "string"
+    .filter(
+      (item): item is Record<string, unknown> =>
+        typeof item === "object" && item !== null && typeof (item as Record<string, unknown>).core_node_id === "string"
     )
     .map((item) => ({
       slot_name: (item.slot_name as string) ?? "",
@@ -485,12 +486,12 @@ function extractOutputRefs(instance: Record<string, unknown>): InternalOutputRef
 }
 
 /** 对外输出项：文件化语义，不含任何 ID */
-export interface OutputItem {
+interface OutputItem {
   slot_name: string
   asset_type: string
-  local_path?: string      // 下载后的本地路径（二进制资产）
-  remote_url?: string      // 平台上的公开 URL（用于分享，不作为输入引用）
-  content?: unknown        // 文本/JSON 资产的内联内容
+  local_path?: string // 下载后的本地路径（二进制资产）
+  remote_url?: string // 平台上的公开 URL（用于分享，不作为输入引用）
+  content?: unknown // 文本/JSON 资产的内联内容
 }
 
 /** slot_name / 任意字符串 → 文件名安全片段 */
@@ -515,7 +516,7 @@ export async function resolveOutputsAndDownload(
   outputDir: string,
   prefix: string
 ): Promise<{ items: OutputItem[]; errors: { slot_name: string; error: string }[] }> {
-  if (!prefix || !prefix.trim()) {
+  if (!prefix?.trim()) {
     throw new Error("resolveOutputsAndDownload: prefix is required (semantic filename)")
   }
   const prefixSlug = slugifySegment(prefix)
@@ -584,7 +585,7 @@ export async function downloadUrls(
   outputDir: string,
   prefix: string
 ): Promise<{ downloaded: string[]; errors: { url: string; error: string }[] }> {
-  if (!prefix || !prefix.trim()) {
+  if (!prefix?.trim()) {
     throw new Error("downloadUrls: prefix is required (semantic filename)")
   }
   const prefixSlug = slugifySegment(prefix)

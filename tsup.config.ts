@@ -8,8 +8,7 @@ export default defineConfig((options) => ({
   sourcemap: false,
   banner: { js: "#!/usr/bin/env node" },
   env: {
-    NODE_ENV:
-      process.env.NODE_ENV ?? (options.watch ? "development" : "production"),
+    NODE_ENV: process.env.NODE_ENV ?? (options.watch ? "development" : "production"),
   },
   treeshake: true,
 }))

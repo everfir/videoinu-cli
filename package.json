@@ -1,5 +1,5 @@
 {
-  "name": "videoinu-cli",
+  "name": "@everfir/videoinu-cli",
   "version": "0.1.0",
   "description": "Videoinu CLI — run AI workflows (image/video/audio generation) on videoinu.com. Designed for both humans and AI agents.",
   "license": "Apache-2.0",
@@ -36,10 +36,14 @@
     "clean": "rm -rf dist",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "tsup --watch",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
+    "lint": "biome check",
+    "format": "biome format --write",
+    "knip": "knip",
+    "check": "pnpm typecheck && pnpm lint && pnpm knip",
     "netdiag": "npx tsx scripts/netdiag.ts",
-    "prepublishOnly": "pnpm run clean && pnpm run build"
+    "prepublishOnly": "npm run clean && npm run build"
   },
   "engines": {
     "node": ">=18"
@@ -49,7 +53,9 @@
     "zod": "^3.25.67"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.13",
     "@types/node": "^22.0.0",
+    "knip": "^6.7.0",
     "tsup": "^8.5.1",
     "typescript": "^5.3.3",
     "vitest": "^4.0.16"
