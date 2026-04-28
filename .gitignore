@@ -1,6 +1,5 @@
 node_modules/
 dist/
-out/
 .DS_Store
 
 .claude/*
@@ -9,4 +8,8 @@ out/
 .codex/*
 !.codex/skills
 
+
+tmp
+
+out
 plans

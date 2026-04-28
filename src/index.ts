@@ -8,9 +8,8 @@ import { runWorkflowList } from "./commands/workflow-list"
 import { runRun } from "./commands/run"
 import { runStatus } from "./commands/status"
 import { runDoctor } from "./commands/doctor"
-import { getDefinition, downloadFiles } from "./workflow"
-import { uploadFile } from "./upload"
-import { submitArkAsset, queryArkAssets, ensureActive } from "./ark-asset"
+import { getDefinition, downloadUrls } from "./workflow"
+import { uploadFilePublic } from "./upload"
 
 const program = new Command()
 
@@ -22,7 +21,6 @@ program
 GLOSSARY:
   - Definition: a reusable workflow template (e.g. "text-to-video"). Has input_schema and output_configs.
   - Instance:   a single execution of a definition. Has status (pending/running/completed/failed/cancelled) and outputs.
-  - CoreNode:   an immutable content reference (file, text, JSON) identified by core_node_id. Inputs and outputs are CoreNodes.
   - Graph:      a canvas that groups multiple workflow runs together. Optional — default mode creates a standalone Asset instead.
   - Asset:      a standalone project container for workflow runs (the default execution mode).
 
@@ -31,14 +29,18 @@ CONTRACT:
   - Progress and logs go to stderr. Do not parse stderr as JSON.
   - Exit code 0 = success. Non-zero = error (stderr has message, stdout has JSON with "error" key).
   - Auth is required for all commands except "config" and "doctor".
+  - Assets are addressed by local file paths. Inputs take local file paths, URLs, or inline text/JSON.
+    Outputs are always written to local files via required --download-dir + --download-prefix.
 
 TYPICAL AGENT WORKFLOW:
-  1. videoinu auth save <access-key>        # one-time setup
-  2. videoinu doctor                         # verify connectivity
-  3. videoinu workflow list --search "text"   # find a workflow definition
-  4. videoinu workflow describe <def-id>      # inspect input_schema and output_configs
-  5. videoinu run <def-id> --input-spec '{"prompt":"a cat"}' --wait --download-dir ./out
-  6. videoinu status <instance-id> --outputs  # check status if not using --wait`
+  1. videoinu auth save <access-key>                                    # one-time setup
+  2. videoinu doctor                                                    # verify connectivity
+  3. videoinu workflow list --search "text"                             # find a workflow definition
+  4. videoinu workflow describe <def-id>                                # inspect input_schema and output_configs
+  5. videoinu run <def-id> --input-spec '{"prompt":"a cat"}' \\
+       --wait --download-dir ./out --download-prefix hero-portrait      # outputs land in ./out/hero-portrait_*.ext
+  6. videoinu status <instance-id> --outputs \\
+       --download-dir ./out --download-prefix hero-portrait             # resume when not using --wait`
   )
   .version("0.1.0")
 
@@ -217,59 +219,59 @@ wfCmd
 program
   .command("run")
   .description(
-    `Execute a workflow definition and return instance IDs. Use 'workflow describe' first to learn required inputs.
+    `Execute a workflow definition. Use 'workflow describe' first to learn required inputs.
 
-OUTPUT (without --wait): {definition_id, definition_name, mode, instance_ids: string[], asset_id, graph_id, created_input_core_nodes}
-OUTPUT (with --wait):    adds instances: [{instance_id, status, progress, outputs: [{slot_name, core_node_id, core_node: {id, type, asset_type, url, content}}], downloaded?: string[]}]
+OUTPUT (without --wait): {definition_id, definition_name, mode, instance_ids: string[], asset_id, graph_id}
+OUTPUT (with --wait):    adds instances: [{instance_id, status, progress,
+                                            outputs: [{slot_name, asset_type, local_path?, remote_url?, content?}],
+                                            download_errors?: [{slot_name, error}]}]
 
-INPUT SPEC (--input-spec): JSON object where keys are slot names from 'workflow describe' output (input_schema[].name).
-  Each value is auto-coerced by these rules (checked in order):
-    1. object with "type" field → used as-is. Supported types:
-       - {type:"text", content:"..."} → creates text CoreNode
-       - {type:"file", path:"./local.png"} → uploads local file, creates CoreNode
-       - {type:"url", url:"https://...", asset_type:"image"} → creates CoreNode from URL (asset_type required)
-       - {type:"json", content:{...}} → creates JSON CoreNode
-       - {type:"core_node", core_node_id:"existing-id"} → references an existing CoreNode (e.g. from 'upload' or 'status --outputs')
-    2. string matching an existing local file path → auto-uploaded as file
-    3. string starting with http(s):// → treated as URL (asset_type inferred from slot's data_type)
-    4. plain string → created as text CoreNode
-    5. object/array when slot data_type is "json" → created as JSON CoreNode
-  Example: '{"prompt":"a cat","image":{"type":"file","path":"./photo.png"}}'
+INPUT SPEC (--input-spec): JSON object where keys are slot names from 'workflow describe' (input_schema[].name).
+  Each value is auto-coerced:
+    1. string matching an existing local file path → uploaded as the slot's asset
+    2. string starting with http(s):// → downloaded then uploaded (asset_type inferred from slot)
+    3. object with "type" field: {type:"text"|"json"|"file"|"url", ...} — explicit form
+    4. plain string → text content
+    5. object/array when slot data_type is "json" → JSON content
+  Example: {"prompt":"a cat","image":"./photo.png"}  OR  {"prompt":"a cat","image":"https://x.com/pic.png"}
 
 EXECUTION MODES (mutually exclusive):
-  - Default: creates a standalone Asset (name auto-generated as "Workflow <timestamp>" if --asset-name omitted)
+  - Default: creates a standalone Asset (name auto-generated if --asset-name omitted)
   - --graph-id: runs inside an existing Graph
   - --new-graph: creates a new Graph with the given name, then runs inside it
+
+DOWNLOAD (REQUIRED with --wait):
+  --download-dir and --download-prefix are required whenever --wait is set. Outputs are written as
+  <prefix>_<slot>_<idx>.<ext>. Text/JSON outputs are inlined as 'content'. There is no way to keep
+  outputs remote-only — all binary results are always downloaded to disk.
 
 TIMING: --wait blocks until the workflow reaches a terminal status. Typical durations:
   - Image generation: 1-5 minutes
   - Music/audio generation: 2-5 minutes
   - Video generation: 5-20 minutes
-  Agents should set a sufficient shell timeout (e.g. 600000ms+) or use run_in_background when calling with --wait.`
+  Agents should set a sufficient shell timeout (e.g. 600000ms+) or use run_in_background when --wait is on.`
   )
   .argument("<definition-id>", "workflow definition ID (from 'workflow list')")
-  .option("--inputs <json>", "[advanced] raw inputs JSON in {slot: {type:'core_node_refs', core_node_ids:[...]}} format. Mutually exclusive with --input-spec")
   .option(
     "--input-spec <json>",
-    "high-level input JSON mapping slot names to values (auto-coerced to core nodes). Mutually exclusive with --inputs. Prefer this over --inputs."
+    "JSON mapping slot names to values (auto-coerced). See command description for coercion rules."
   )
   .option("--graph-id <id>", "run inside this existing graph. Mutually exclusive with --new-graph")
   .option("--new-graph <name>", "create a new graph with this name and run inside it. Mutually exclusive with --graph-id")
   .option("--asset-name <name>", "name for the created Asset (auto-generated if omitted). Ignored when --graph-id or --new-graph is used")
   .option("--count <n>", "run the same workflow N times with identical inputs to generate multiple variants", (v) => parseInt(v, 10), 1)
-  .option("--wait", "block until all instances reach terminal status (completed/failed/cancelled)")
+  .option("--wait", "block until all instances reach terminal status (completed/failed/cancelled). Required when you want outputs.")
   .option("--timeout <seconds>", "max seconds to wait (0 = no limit). Only effective with --wait", (v) => parseInt(v, 10), 0)
   .option("--interval <seconds>", "polling interval in seconds. Only effective with --wait", (v) => parseInt(v, 10), 3)
-  .option("--download-dir <dir>", "download output files to this directory. Requires --wait")
-  .option("--download-prefix <prefix>", "filename prefix for downloaded files. Requires --download-dir")
-  .option("--review", "force ark asset content review for media inputs (auto-detected for Seedance2 workflows)")
-  .option("--no-review", "skip ark asset review even for Seedance2 workflows")
+  .option("--download-dir <dir>", "REQUIRED with --wait. Directory for downloaded output files.")
+  .option("--download-prefix <prefix>", "REQUIRED with --wait. Semantic filename prefix (e.g. 'shot1-hero'); filenames become <prefix>_<slot>_<idx>.<ext>. Random/hash-like values are discouraged.")
+  .option("--review", "force content review for media inputs (auto-detected for Seedance2 workflows)")
+  .option("--no-review", "skip content review even for Seedance2 workflows")
   .option("--estimate", "estimate cost without executing. Output: {estimated_cost, user_credits, can_afford}")
   .action(
     async (
       definitionId: string,
       opts: {
-        inputs?: string
         inputSpec?: string
         graphId?: string
         newGraph?: string
@@ -284,12 +286,21 @@ TIMING: --wait blocks until the workflow reaches a terminal status. Typical dura
         estimate?: boolean
       }
     ) => {
-      if (opts.inputs && opts.inputSpec) {
-        process.stderr.write("Error: use either --inputs or --input-spec, not both\n")
-        process.exit(1)
-      }
       if (opts.graphId && opts.newGraph) {
         process.stderr.write("Error: use either --graph-id or --new-graph, not both\n")
+        process.exit(1)
+      }
+      if (opts.wait && !opts.estimate && (!opts.downloadDir || !opts.downloadPrefix)) {
+        process.stderr.write(
+          "Error: --wait requires both --download-dir and --download-prefix. " +
+          "Outputs are always written to disk. Example: --download-dir ./out --download-prefix shot1-hero\n"
+        )
+        process.exit(1)
+      }
+      if ((opts.downloadDir || opts.downloadPrefix) && !opts.wait) {
+        process.stderr.write(
+          "Error: --download-dir / --download-prefix require --wait.\n"
+        )
         process.exit(1)
       }
 
@@ -298,7 +309,6 @@ TIMING: --wait blocks until the workflow reaches a terminal status. Typical dura
       await runRun({
         definitionId,
         inputSpec: opts.inputSpec,
-        inputs: opts.inputs,
         mode,
         assetName: opts.assetName,
         graphName: opts.newGraph,
@@ -307,8 +317,8 @@ TIMING: --wait blocks until the workflow reaches a terminal status. Typical dura
         wait: opts.wait ?? false,
         timeout: opts.timeout,
         interval: opts.interval,
-        downloadDir: opts.downloadDir,
-        downloadPrefix: opts.downloadPrefix,
+        downloadDir: opts.downloadDir ?? "",
+        downloadPrefix: opts.downloadPrefix ?? "",
         review: opts.review,
         estimate: opts.estimate,
       })
@@ -323,16 +333,16 @@ program
     `Query a workflow instance's current status. Use this to check on runs started without --wait.
 
 OUTPUT: {instance_id, status: 'pending'|'running'|'completed'|'failed'|'cancelled', progress: 0-100}
-  With --outputs: adds outputs: [{slot_name, core_node_id, core_node: {id, type, asset_type, url, content}}]
-  With --poll:    blocks until terminal status or timeout, with progress on stderr.
-  With --download-dir: adds downloaded: string[] (local file paths)`
+  With --outputs: adds outputs: [{slot_name, asset_type, local_path?, remote_url?, content?}]
+                  REQUIRES --download-dir + --download-prefix (outputs are always written to disk)
+  With --poll:    blocks until terminal status or timeout, progress on stderr`
   )
   .argument("<instance-id>", "workflow instance ID (from 'run' output's instance_ids array)")
   .option("--poll <timeout-seconds>", "block and poll until terminal status or timeout (value is max seconds, e.g. --poll 300)", (v) => parseInt(v, 10))
   .option("--interval <seconds>", "polling interval in seconds. Only effective with --poll", (v) => parseInt(v, 10), 3)
-  .option("--outputs", "resolve output core nodes and include in JSON output")
-  .option("--download-dir <dir>", "download output files to this directory (implies --outputs)")
-  .option("--download-prefix <prefix>", "filename prefix for downloaded files. Requires --download-dir")
+  .option("--outputs", "resolve outputs and download them to disk. Requires --download-dir and --download-prefix.")
+  .option("--download-dir <dir>", "REQUIRED with --outputs. Directory for downloaded output files.")
+  .option("--download-prefix <prefix>", "REQUIRED with --outputs. Semantic filename prefix (e.g. 'shot1-hero'); filenames become <prefix>_<slot>_<idx>.<ext>. Random/hash-like values are discouraged.")
   .action(
     async (
       instanceId: string,
@@ -344,6 +354,19 @@ OUTPUT: {instance_id, status: 'pending'|'running'|'completed'|'failed'|'cancelle
         downloadPrefix?: string
       }
     ) => {
+      if (opts.outputs && (!opts.downloadDir || !opts.downloadPrefix)) {
+        process.stderr.write(
+          "Error: --outputs requires both --download-dir and --download-prefix. " +
+          "Outputs are always written to disk. Example: --download-dir ./out --download-prefix shot1-hero\n"
+        )
+        process.exit(1)
+      }
+      if ((opts.downloadDir || opts.downloadPrefix) && !opts.outputs) {
+        process.stderr.write(
+          "Error: --download-dir / --download-prefix require --outputs.\n"
+        )
+        process.exit(1)
+      }
       await runStatus(instanceId, opts)
     }
   )
@@ -353,15 +376,15 @@ OUTPUT: {instance_id, status: 'pending'|'running'|'completed'|'failed'|'cancelle
 program
   .command("upload")
   .description(
-    "Upload a local file to Videoinu and create a CoreNode reference. " +
-    "asset_type is auto-detected from file extension: image (png/jpg/webp/gif), video (mp4/mov/webm), audio (mp3/wav/ogg/flac), text (txt), json, pdf. Max 200MB. " +
-    "Text and JSON files are read and stored as content (no binary upload). " +
-    "Output: {core_node_id: string, file_url?: string, asset_type: string}. " +
-    "Use the returned core_node_id in 'run --input-spec' via {type:'core_node', core_node_id:'...'}."
+    "Pre-upload a local file to Videoinu (MD5-cached so the same file won't re-upload). " +
+    "asset_type is auto-detected from extension: image (png/jpg/webp/gif), video (mp4/mov/webm), audio (mp3/wav/ogg/flac), text (txt), json, pdf. Max 200MB. " +
+    "Output: {local_path, asset_type, remote_url?, cached?}. " +
+    "You do NOT need to call 'upload' before 'run' — 'run --input-spec' auto-uploads any local path. " +
+    "Use 'upload' only when you want to pre-upload (e.g. for dedup) or obtain remote_url for sharing."
   )
   .argument("<file>", "local file path (absolute or relative)")
   .action(async (file: string) => {
-    const result = await uploadFile(file)
+    const result = await uploadFilePublic(file)
     console.log(JSON.stringify(result, null, 2))
   })
 
@@ -391,80 +414,22 @@ program
     )
   })
 
-// ─── ark-asset ──────────────────────────────────────────────────
-
-const arkCmd = program
-  .command("ark-asset")
-  .description(
-    "Manage ark asset review (required by Seedance2 series models). " +
-    "Media inputs must pass content review before they can be used in Seedance2 workflows. " +
-    "The 'run' command handles this automatically, but these subcommands allow manual control."
-  )
-
-arkCmd
-  .command("submit")
-  .description(
-    "Submit a file or core_node_id for content review. " +
-    "If a local file path is given, it is uploaded first. " +
-    "Output: {core_node_id, asset_id, status}. Status is 'Processing' or 'Active'. " +
-    "Use --wait to block until status becomes Active."
-  )
-  .argument("<file-or-id>", "local file path or existing core_node_id")
-  .option("--wait", "block until review completes (Active) or fails")
-  .option("--timeout <seconds>", "max seconds to wait", (v) => parseInt(v, 10), 300)
-  .option("--interval <seconds>", "polling interval in seconds", (v) => parseInt(v, 10), 5)
-  .action(async (fileOrId: string, opts: { wait?: boolean; timeout: number; interval: number }) => {
-    // 判断是文件路径还是 core_node_id
-    let coreNodeId: string
-    const isFile = fileOrId.includes("/") || fileOrId.includes("\\") || fileOrId.includes(".")
-    if (isFile) {
-      process.stderr.write(`Uploading ${fileOrId}...\n`)
-      const uploaded = await uploadFile(fileOrId)
-      coreNodeId = uploaded.core_node_id
-      process.stderr.write(`Uploaded: core_node_id=${coreNodeId}\n`)
-    } else {
-      coreNodeId = fileOrId
-    }
-
-    if (opts.wait) {
-      const result = await ensureActive(coreNodeId, {
-        timeout: opts.timeout,
-        interval: opts.interval,
-        onProgress: (status) => process.stderr.write(`[review] status=${status}\n`),
-      })
-      console.log(JSON.stringify(result, null, 2))
-    } else {
-      const result = await submitArkAsset(coreNodeId)
-      console.log(JSON.stringify({ core_node_id: coreNodeId, ...result }, null, 2))
-    }
-  })
-
-arkCmd
-  .command("query")
-  .description(
-    "Query review status for one or more core_node_ids. " +
-    "Output: {items: [{core_node_id, asset_id, status}]}. " +
-    "Status values: 'Processing' (pending review), 'Active' (approved and usable)."
-  )
-  .argument("<core-node-ids...>", "one or more core_node_ids to query")
-  .action(async (ids: string[]) => {
-    const items = await queryArkAssets(ids)
-    console.log(JSON.stringify({ items }, null, 2))
-  })
-
 // ─── download ───────────────────────────────────────────────────
 
 program
   .command("download")
   .description(
-    "Download files from URLs to local disk. Typically used to save output URLs from 'status --outputs'. " +
+    "Download files from URLs to local disk. Rarely needed — 'run --wait' and 'status --outputs' already download automatically. " +
+    "Use this only for one-off URL saves (e.g. a shared remote_url from another user). " +
+    "REQUIRES --prefix: a short semantic slug describing what these files are (e.g. 'hero-portrait', 'shot1-storyboard'). " +
+    "Output filenames: <prefix>_<idx>.<ext>. " +
     "Output: {output_dir, downloaded: string[], total: number, errors?: [{url, error}]}."
   )
   .argument("<urls...>", "one or more URLs to download (space-separated)")
   .option("-o, --output-dir <dir>", "target directory (default: ~/Downloads/videoinu_results)", path.join(os.homedir(), "Downloads/videoinu_results"))
-  .option("--prefix <prefix>", "prepend this prefix to filenames (format: prefix_001.ext)")
-  .action(async (urls: string[], opts: { outputDir: string; prefix?: string }) => {
-    const { downloaded, errors } = await downloadFiles(urls, opts.outputDir, opts.prefix)
+  .requiredOption("--prefix <prefix>", "REQUIRED. Semantic filename prefix describing the content (e.g. 'hero-portrait'). Random/hash-like prefixes are discouraged.")
+  .action(async (urls: string[], opts: { outputDir: string; prefix: string }) => {
+    const { downloaded, errors } = await downloadUrls(urls, opts.outputDir, opts.prefix)
     const result: Record<string, unknown> = { output_dir: opts.outputDir, downloaded, total: downloaded.length }
     if (errors.length) result.errors = errors
     console.log(JSON.stringify(result, null, 2))
