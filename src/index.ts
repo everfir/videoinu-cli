@@ -176,14 +176,12 @@ wfCmd
   .option("--search <text>", "case-insensitive substring match across all fields (name, id, tags)")
   .option("--group <value>", "exact match on group tag")
   .option("--function <value>", "exact match on function tag (e.g. 'generate', 'upscale', 'edit')")
-  .option("--tag <value...>", "require exact tag match; repeatable, all must match")
   .option("--refresh", "bypass cache, fetch full list from API")
-  .action(async (opts: { search?: string; group?: string; function?: string; tag?: string[]; refresh?: boolean }) => {
+  .action(async (opts: { search?: string; group?: string; function?: string; refresh?: boolean }) => {
     await runWorkflowList({
       search: opts.search,
       group: opts.group,
       fn: opts.function,
-      tag: opts.tag,
       refresh: opts.refresh,
     })
   })

@@ -77,14 +77,7 @@ function getCachedStatus(coreNodeId: string): CacheEntry | undefined {
 // API
 // ---------------------------------------------------------------------------
 
-/** 提交 core_node_id 进行审核，返回 {asset_id, status} */
 async function submitArkAsset(coreNodeId: string): Promise<{ asset_id: string; status: string }> {
-  // 缓存命中且已 Active，直接返回
-  const cached = getCachedStatus(coreNodeId)
-  if (cached?.status === "Active") {
-    return { asset_id: cached.asset_id, status: "Active" }
-  }
-
   const data = await apiPost("/ark_asset/submit", { core_node_id: coreNodeId })
   const result = SubmitResponse.parse(data)
   updateCacheEntry(coreNodeId, result.asset_id, result.status)

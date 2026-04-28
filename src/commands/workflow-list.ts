@@ -4,7 +4,6 @@ export async function runWorkflowList(opts: {
   search?: string
   group?: string
   fn?: string
-  tag?: string[]
   refresh?: boolean
 }) {
   let defs = (await listDefinitions({ forceRefresh: opts.refresh })).map(summarizeBrief)
@@ -20,13 +19,6 @@ export async function runWorkflowList(opts: {
   if (opts.fn) {
     const v = opts.fn.toLowerCase()
     defs = defs.filter((d) => (d.function as string).toLowerCase() === v)
-  }
-  if (opts.tag?.length) {
-    const required = new Set(opts.tag)
-    defs = defs.filter((d) => {
-      const tags = new Set(Array.isArray(d.tags) ? (d.tags as string[]) : [])
-      return [...required].every((t) => tags.has(t))
-    })
   }
 
   console.log(JSON.stringify({ definitions: defs }, null, 2))

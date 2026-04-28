@@ -256,13 +256,9 @@ export async function buildInputs(
     const slot = schemaMap.get(slotName)
     if (!slot) throw new Error(`Unknown input slot: ${slotName}`)
 
-    // normalize to array
-    const rawItems =
-      slot.data_type === "json" && Array.isArray(rawValue) && !slot.multiple
-        ? [rawValue]
-        : Array.isArray(rawValue)
-          ? rawValue
-          : [rawValue]
+    // json + array 且 slot 不接受 multiple：整个 array 作为单个 json 值
+    const jsonArrayAsSingleValue = slot.data_type === "json" && Array.isArray(rawValue) && !slot.multiple
+    const rawItems = jsonArrayAsSingleValue || !Array.isArray(rawValue) ? [rawValue] : rawValue
 
     const coerced = rawItems.map((v) => coerceItem(v, slot))
     const resolved = await Promise.all(coerced.map((item) => resolveInputItem(item, slot)))

@@ -90,24 +90,17 @@ const CreateCoreNodesResponse = z.object({
   core_node_ids: z.array(z.string()),
 })
 
-async function createCoreNodes(nodes: Record<string, unknown>[]): Promise<string[]> {
-  const data = await apiPost("/core_nodes", { nodes })
-  return CreateCoreNodesResponse.parse(data).core_node_ids
+async function createCoreNode(node: Record<string, unknown>): Promise<string> {
+  const data = await apiPost("/core_nodes", { nodes: [node] })
+  return CreateCoreNodesResponse.parse(data).core_node_ids[0]
 }
 
-export async function createTextCoreNode(content: string): Promise<string> {
-  const ids = await createCoreNodes([{ asset_type: "text", content }])
-  return ids[0]
+export function createTextCoreNode(content: string): Promise<string> {
+  return createCoreNode({ asset_type: "text", content })
 }
 
-export async function createJsonCoreNode(content: unknown): Promise<string> {
-  const ids = await createCoreNodes([{ asset_type: "json", content: JSON.stringify(content) }])
-  return ids[0]
-}
-
-async function createUrlCoreNode(url: string, assetType: string): Promise<string> {
-  const ids = await createCoreNodes([{ asset_type: assetType, url }])
-  return ids[0]
+export function createJsonCoreNode(content: unknown): Promise<string> {
+  return createCoreNode({ asset_type: "json", content: JSON.stringify(content) })
 }
 
 // ---------------------------------------------------------------------------
@@ -176,7 +169,7 @@ export async function uploadFile(filePath: string): Promise<UploadResult> {
   const fileBytes = fs.readFileSync(resolved)
   await uploadRaw(presign.upload_url, fileBytes, mime)
 
-  const coreNodeId = await createUrlCoreNode(presign.file_url, assetType)
+  const coreNodeId = await createCoreNode({ asset_type: assetType, url: presign.file_url })
 
   // 写入缓存
   cache[hash] = {
