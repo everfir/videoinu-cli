@@ -6,6 +6,17 @@
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-04-28
+
+### 变更
+
+- `workflow list` 移除 `--tag` 选项（实际一直没生效）
+- 内部简化：合并 core_node 创建辅助函数、去除 ark 审核链路的冗余缓存读
+
+### 安全
+
+- 通过 pnpm overrides 将 `postcss` 升级到 `>=8.5.10`，修复 GHSA-qx2v-qp2m-jg93（仅 devDependency）
+
 ## [0.1.0] - 2026-04-28
 
 ### 新增
@@ -17,5 +28,6 @@
 - MD5 缓存，同文件不重复上传
 - 面向 AI agent 的输出契约：stdout 纯 JSON、stderr 日志、退出码标准化
 
-[Unreleased]: https://github.com/everfir/videoinu-cli/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/everfir/videoinu-cli/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/everfir/videoinu-cli/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/everfir/videoinu-cli/releases/tag/v0.1.0
