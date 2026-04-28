@@ -6,9 +6,10 @@ const CONFIG_DIR = path.join(os.homedir(), ".videoinu")
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.json")
 const CREDENTIALS_FILE = path.join(CONFIG_DIR, "credentials.json")
 
+export const API_BASE_URL = "https://videoinu.com"
+
 export const KNOWN_KEYS: Record<string, string> = {
   access_key: "Videoinu access key (JWT token from Profile -> Copy Access Key)",
-  api_base: "API base URL (default: https://videoinu.com)",
 }
 
 interface Config {
@@ -35,8 +36,13 @@ function saveConfig(config: Config): void {
 }
 
 export function setConfigValue(key: string, value: string): void {
+  const normalized = key.toLowerCase()
+  if (!(normalized in KNOWN_KEYS)) {
+    const allowed = Object.keys(KNOWN_KEYS).join(", ")
+    throw new Error(`unknown config key "${key}". Allowed keys: ${allowed}`)
+  }
   const config = loadConfig()
-  config[key.toLowerCase()] = value
+  config[normalized] = value
   saveConfig(config)
 }
 
@@ -84,7 +90,11 @@ export function removeAccessKey(): boolean {
 }
 
 export function getBaseUrl(): string {
-  return getConfigValue("api_base") || "https://videoinu.com"
+  if (process.env.NODE_ENV !== "production") {
+    const devOverride = process.env.VIDEOINU_DEV_API_BASE
+    if (devOverride) return devOverride.replace(/\/+$/, "")
+  }
+  return API_BASE_URL
 }
 
 export const CONFIG_DIR_PATH = CONFIG_DIR
