@@ -41,7 +41,7 @@ TYPICAL AGENT WORKFLOW:
   6. videoinu status <instance-id> --outputs \\
        --download-dir ./out --download-prefix hero-portrait             # resume when not using --wait`
   )
-  .version("0.1.0")
+  .version(__CLI_VERSION__)
 
 // ─── auth ───────────────────────────────────────────────────────
 
