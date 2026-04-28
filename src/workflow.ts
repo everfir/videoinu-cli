@@ -420,7 +420,7 @@ export async function waitForWorkflow(
   }
 ): Promise<WaitResult> {
   const timeout = opts?.timeout ?? 0  // 0 = 无限等待
-  const interval = opts?.interval ?? 3
+  const interval = opts?.interval ?? 15
   const start = Date.now()
 
   let instance: Record<string, unknown> = {}

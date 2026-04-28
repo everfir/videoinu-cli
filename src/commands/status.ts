@@ -23,7 +23,7 @@ export async function runStatus(
   if (opts.poll) {
     const waited = await waitForWorkflow(instanceId, {
       timeout: opts.poll,
-      interval: opts.interval ?? 3,
+      interval: opts.interval ?? 15,
       onProgress: progressCallback,
     })
     status = waited.status

@@ -2,7 +2,9 @@
 
 面向 gpt-image-2。模型擅长 instruction-following，**优先写自然语言的完整描述**，而不是标签堆砌。下方词表用作词汇参考，不是骨架填空项。
 
-**带参考图时**（r2i / 多图场景）先读 SKILL.md「身份核对」「`@imageN` 的正面用途说明」「有资产时的 prompt 反稀释原则」。
+**带参考图时**（r2i / 多图场景）先读 SKILL.md「身份核对」「多图必写用途说明」「有资产时的正片 prompt」反稀释原则。
+
+**作为设定图 / 分镜图生成**（pre-production 用途）时不走本文件的一般性规则，见 [media-principles.md §4](media-principles.md#4-pre-production-流水线设定图--分镜图--正片) / [§5](media-principles.md#5-分镜图规格) 的专用规格。
 
 gpt-image-2 **没有 negative prompt 参数**，不要单独写"Negative:"字段；要排除的内容直接在正向 prompt 中说（例："no text, no watermark"）。
 

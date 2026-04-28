@@ -142,7 +142,7 @@ export async function ensureActive(
 
   // 轮询
   const timeout = opts?.timeout ?? 300
-  const interval = opts?.interval ?? 5
+  const interval = opts?.interval ?? 15
   const start = Date.now()
 
   while (Date.now() - start < timeout * 1000) {

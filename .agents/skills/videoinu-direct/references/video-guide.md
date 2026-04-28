@@ -24,8 +24,20 @@
 - 默认描述式 prompt，模型自己排时序。时序反复错说明场景超出模型能力，换策略（拆镜头 / 降复杂度 / f2v 首尾帧），不要靠硬编码时间戳强推
 - i2v 不重复首帧静态内容，只写变化
 - 不用否定表达；每个词都要对应画面中可见的东西或运镜，不造术语
-- **有主体参考图 / storyboard 时禁用画质堆叠尾部标签和防漂移兜底词**（详见 SKILL.md 反稀释原则）；仅裸 t2v 可加尾部画质标签
+- **有主体参考图 / 分镜图时禁用画质堆叠尾部标签和防漂移兜底词**（详见 SKILL.md「有资产时的正片 prompt」）；仅裸 t2v 可加尾部画质标签
 - 迭代只改一维
+
+## 使用分镜图参考时
+
+基础骨架（style lock + `@imageN` 用途说明 + motion texture）见 SKILL.md「有资产时的正片 prompt」。本段只补分镜图场景下视频 prompt 的专门技巧。
+
+**`camera rhythm` 不按 panel 数逐格列**。只挑会改变观众感受的力学节点：进入压力 / 失控点 / 主转折点 / 回正 / 释放。每个节点写相机如何服务这个力，而不是写"Panel 1, Panel 2..."。3-5 个节点，每个含 shot scale + move type + speed/direction。
+
+反模式：
+- ❌ 把 storyboard prompt 原文粘到 video prompt，模型会把正片当动作清单平均执行
+- ❌ 只写"follow the storyboard"，模型不知道要补哪种镜头节奏
+- ❌ 只写"do not show storyboard page"这类否定句，却不写最终画面形态
+- ✅ 写"render as final full-frame video"，再说明 storyboard 只承担 action/composition/continuity
 
 ## 相机运动
 
@@ -49,7 +61,7 @@
 
 - 相邻镜头默认要有视觉桥梁（空间/光照/元素传递），刻意跳切除外
 - 每镜头显式写光照指令，跨镜头的光照变化也要显式
-- 叙事/动作多镜头跑 storyboard 线稿板（见 media-principles.md §4；触发条件见 SKILL.md）
+- 叙事/动作多镜头跑分镜图（规格见 media-principles.md §5；触发条件见 SKILL.md「Pre-production 两层资产」）
 
 ---
 
